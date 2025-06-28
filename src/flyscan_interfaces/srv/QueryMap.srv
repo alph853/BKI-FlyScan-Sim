@@ -1,0 +1,9 @@
+# QueryMap.srv
+# Service for querying hypermap for mission planning
+
+# Request
+int32 test
+---
+# Response
+bool success
+string message

@@ -1,0 +1,6 @@
+# GetRegisteredNodes.srv
+#--- Request ---
+# (no fields)
+---
+#--- Response ---
+flyscan_interfaces/NodeInfo[] nodes

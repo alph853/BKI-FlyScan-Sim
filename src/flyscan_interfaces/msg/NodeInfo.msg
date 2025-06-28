@@ -1,0 +1,10 @@
+# RegisterNodeInfo.msg
+string node_name
+string node_id
+string node_type
+string node_namespace
+string[] capabilities
+builtin_interfaces/Time registration_time
+builtin_interfaces/Time last_heartbeat
+string state_label
+uint8 state_id

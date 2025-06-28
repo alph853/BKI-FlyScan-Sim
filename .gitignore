@@ -1,0 +1,46 @@
+# === ROS 2 colcon build ===
+build/
+install/
+log/
+
+# === Python cache ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+
+# === CMake / Make ===
+CMakeFiles/
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+
+# === IDE files ===
+.vscode/
+.idea/
+*.swp
+
+# === ROS launch/test files ===
+*.launch.pyc
+*.test.pyc
+
+# === Misc ===
+*.bak
+*~
+.DS_Store
+
+# === ROS tools ===
+.colcon/
+colcon.meta
+s
+
+# === Custom files ===
+.cache/
+
+build_system.sh
+template/
+# images/
+# QR-reader/
+# src/*/images/
