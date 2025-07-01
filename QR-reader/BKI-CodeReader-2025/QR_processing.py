@@ -131,6 +131,7 @@ class QRProcessor:
     def show_frame(self, image: np.ndarray) -> np.ndarray:
         results = self.model.predict(image, conf=self.conf, imgsz=self.imgsz)
         predictions = results[0].boxes
+
         if predictions is None or len(predictions) == 0:
             return image
 

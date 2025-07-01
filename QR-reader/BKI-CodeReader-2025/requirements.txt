@@ -2,3 +2,6 @@ opencv-python
 numpy
 pyzbar
 inference
+pandas
+scikit-learn
+ultralytics

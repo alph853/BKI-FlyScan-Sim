@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <sdf version='1.10'>
   <world name='warehouse'>
     <gravity>0 0 -9.8000000000000007</gravity>
@@ -7,13 +8,13 @@
       <max_contacts>10</max_contacts>
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
-    <plugin name='ignition::gazebo::systems::Physics' filename='libignition-gazebo-physics-system.so'/>
+    <!-- <plugin name='ignition::gazebo::systems::Physics' filename='libignition-gazebo-physics-system.so'/>
     <plugin name='ignition::gazebo::systems::UserCommands' filename='libignition-gazebo-user-commands-system.so'/>
     <plugin name='ignition::gazebo::systems::SceneBroadcaster' filename='libignition-gazebo-scene-broadcaster-system.so'/>
     <plugin name='ignition::gazebo::systems::Imu' filename='ignition-gazebo-imu-system'/>
-    <plugin name='ignition::gazebo::systems::Sensors' filename='ignition-gazebo-sensors-system'>
-      <render_engine>ogre2</render_engine>
-    </plugin>
+    <plugin name='ignition::gazebo::systems::Sensors' filename='ignition-gazebo-sensors-system'> -->
+      <!-- <render_engine>ogre2</render_engine>
+    </plugin> -->
     <gui fullscreen='false'>
       <plugin name='3D View' filename='GzScene3D'>
         <ignition-gui>
@@ -97,7 +98,7 @@
           <property key='cardBackground' type='string'>#666666</property>
         </ignition-gui>
       </plugin>
-      <plugin name='Component inspector' filename='ComponentInspector'>
+      <!-- <plugin name='Component inspector' filename='ComponentInspector'>
         <ignition-gui>
           <property key='x' type='double'>0</property>
           <property key='y' type='double'>0</property>
@@ -114,8 +115,8 @@
           <property key='height' type='double'>375</property>
           <property key='state' type='string'>docked_collapsed</property>
         </ignition-gui>
-      </plugin>
-      <plugin name='Teleop' filename='Teleop'>
+      </plugin> -->
+      <!-- <plugin name='Teleop' filename='Teleop'>
         <ignition-gui>
           <property key='x' type='double'>0</property>
           <property key='y' type='double'>0</property>
@@ -123,8 +124,8 @@
           <property key='height' type='double'>900</property>
           <property key='state' type='string'>docked</property>
         </ignition-gui>
-        <topic>/model/x500_depth/cmd_vel</topic>
-      </plugin>
+        <topic>/model/tugbot/cmd_vel</topic>
+      </plugin> -->
     </gui>
     <scene>
       <ambient>1 1 1 1</ambient>
@@ -175,6 +176,16 @@
       <name>warehouse</name>
       <pose>0 0 -0.089999999999999997 0 0 0</pose>
     </include>
+    <!-- <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/Tugbot-charging-station</uri>
+      <name>charging_station</name>
+      <pose>14.699999999999999 -10.6 -0.040000000000000001 0 0 0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/Tugbot</uri>
+      <name>tugbot</name>
+      <pose>13.9 -10.6 0.10000000000000001 0 0 0</pose>
+    </include> -->
     <include>
       <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/cart_model_2</uri>
       <name>cart1</name>

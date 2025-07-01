@@ -1,6 +1,8 @@
 import cv2
 import pandas as pd
 from QR_processing import QRProcessor
+import time
+import matplotlib.pyplot as plt
 
 db = pd.DataFrame([
     {"ma_san_pham": 1, "noi_dung": "https://qr.zalo.me/"},
@@ -17,10 +19,30 @@ db = pd.DataFrame([
 
 processor = QRProcessor(database=db, id_col='ma_san_pham', data_col='noi_dung')
 
+USE_PLT = True
+
+if USE_PLT:
+    plt.ion()  # Turn on interactive mode
+    fig, ax = plt.subplots()  # Create figure once
+    im = None  # placeholder for image handle
+
+def show_function(x):
+    global im
+    if USE_PLT:
+        frame_rgb = cv2.cvtColor(x, cv2.COLOR_BGR2RGB)
+        if im is None:
+            im = ax.imshow(frame_rgb)
+        else:
+            im.set_data(frame_rgb)
+        plt.axis('off')
+        plt.pause(0.001)  # VERY important!
+    else:
+        cv2.imshow("frame", x)
+
 RTMP_URL = "rtmp://192.168.33.108:1935/live/stream"
 OUTPUT_CSV = "output.csv"
 
-cap = cv2.VideoCapture(RTMP_URL)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("ERROR: cannot open camera")
     exit(1)
@@ -30,14 +52,17 @@ print("Starting video capture... (press Enter to process, 'q' to quit)")
 with open(OUTPUT_CSV, "w") as f:
     f.write("ma_san_pham,noi_dung\n")
 
+gui = plt
+
 while True:
     ret, frame = cap.read()
     if not ret:
         print("ERROR: failed to grab frame")
         break
 
+        
     display = processor.show_frame(frame.copy())
-    cv2.imshow("frame", display)
+    show_function(display)
 
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
@@ -51,7 +76,7 @@ while True:
             loading, "Processing...", (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2
         )
-        cv2.imshow("frame", loading)
+        gui.imshow("frame", loading)
         cv2.waitKey(1)
 
         processed = processor.process_frame(proc_frame)
@@ -68,7 +93,7 @@ while True:
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.6, (0, 0, 0), 2)
 
-        cv2.imshow("frame", result_img)
+        show_function(result_img)
 
         print("Press 'y' to save results, 'n' to discard, or 'q' to quit.")
         while True:

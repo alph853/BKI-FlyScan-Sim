@@ -1,38 +1,92 @@
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, SetEnvironmentVariable
+from launch.actions import ExecuteProcess, TimerAction, DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+from ament_index_python.packages import get_package_share_directory
+
 import os
 
-WORKSPACE_DIR = '/home/ttd/Documents/flyscan_ws'
-QGC_PATH = '/home/ttd/Downloads/QGroundControl.AppImage'
+QGC_PATH = 'qgroundcontrol'
 PX4_DIR = '/home/ttd/Documents/flyscan_ws/PX4-Autopilot'
+GZ_WORLD = 'warehouse'
+
 
 def generate_launch_description():
-    px4_env_cmd = (
-        f'cd {PX4_DIR} && '
-        'PX4_GZ_WORLD=warehouse make px4_sitl_default gz_x500_depth'
+    sim_pkg = get_package_share_directory('flyscan_sim')
+
+    gz_world = os.path.join(sim_pkg, 'worlds', f'{GZ_WORLD}.sdf')
+    target_world = os.path.join(PX4_DIR, 'Tools', 'simulation', 'gz', 'worlds', f'{GZ_WORLD}.sdf')
+    
+    symlink_world = ExecuteProcess(
+        cmd=['bash', '-c', f'ln -sf {gz_world} {target_world}'],
+        output='screen'
     )
 
-    micro_ros_agent_cmd = (
-        'micro-xrce-dds-agent udp4 -p 8888'
+    px4_env_cmd = f'cd {PX4_DIR} && PX4_GZ_WORLD={GZ_WORLD} make px4_sitl_default gz_x500_depth'
+    px4_sitl = ExecuteProcess(
+        cmd=['bash', '-c', px4_env_cmd],
+        output='screen'
+    )
+
+    qgc_cmd = f'pgrep -x QGroundControl || {QGC_PATH}'
+    qgc = ExecuteProcess(
+        cmd=['bash', '-c', qgc_cmd],
+        output='screen'
     )
     
-    qgc_conditional_cmd = (
-        f'pgrep -x QGroundControl || {QGC_PATH}'
+    micro_XRCE_bridge_cmd = f'MicroXRCEAgent udp4 -p 8888'
+    micro_XRCE_bridge = ExecuteProcess(
+        cmd=['bash', '-c', micro_XRCE_bridge_cmd],
+        output='screen'
+    )
+    
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation time'
+    )
+
+    bridge_config_file = PathJoinSubstitution([
+        FindPackageShare('flyscan_sim'),
+        'config',
+        'bridge_config.yaml'
+    ])
+
+    gz_bridge_node = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='gz_bridge',
+        parameters=[
+            {'use_sim_time': LaunchConfiguration('use_sim_time')},
+            bridge_config_file
+        ],
+        arguments=[
+            '/world/warehouse/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
+            '/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+            '/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/image@sensor_msgs/msg/Image@gz.msgs.Image',
+            
+            '/depth_camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
+
+            '/world/warehouse/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
+            '/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
+        ],
+        remappings=[
+            ('/world/warehouse/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu', '/imu/data'),
+            ('/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/image', '/camera/image_raw'),
+            ('/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/camera_info', '/camera/camera_info'),
+            # ('/depth_camera', '/camera/depth/image'),
+            ('/depth_camera/points', '/camera/depth/points'),
+            ('/world/warehouse/clock', '/clock'),
+        ],
+        output='screen',
     )
 
     return LaunchDescription([
-        ExecuteProcess(
-            cmd=[QGC_PATH],
-            cwd=WORKSPACE_DIR,
-            output='screen'
-        ),
-        ExecuteProcess(
-            cmd=['bash', '-c', px4_env_cmd],
-            cwd=PX4_DIR,
-            output='screen'
-        ),
-        ExecuteProcess(
-            cmd=['bash', '-c', micro_ros_agent_cmd],
-            output='screen'
-        )
+        use_sim_time_arg,
+        symlink_world,
+        micro_XRCE_bridge,
+        qgc,
+        px4_sitl,
+        TimerAction(period=5.0, actions=(gz_bridge_node,)),
     ])

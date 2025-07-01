@@ -35,8 +35,14 @@ ros2 node list
 #### Lifecycle Nodes CLI
 
 ```bash
-ros2 lifecycle list
-ros2 lifecycle get ns/<node_name>
-ros2 lifecycle set ns/<node_name> <transition>
+# Download the latest AppImage (example for x86_64)
+wget https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage
+
+# Make it executable
+chmod +x QGroundControl.AppImage
+
+# Optionally move it to /usr/local/bin for global access
+sudo mv QGroundControl.AppImage /usr/local/bin/qgroundcontrol
 ```
+
 Transitions are: `configure, activate, deactivate, cleanup, shutdown`
