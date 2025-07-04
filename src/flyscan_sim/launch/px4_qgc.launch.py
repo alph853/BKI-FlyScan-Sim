@@ -9,7 +9,7 @@ import os
 
 QGC_PATH = 'qgroundcontrol'
 PX4_DIR = '/home/ttd/Documents/flyscan_ws/PX4-Autopilot'
-GZ_WORLD = 'warehouse'
+GZ_WORLD = 'warehouse_outdoor'
 
 
 def generate_launch_description():
@@ -17,6 +17,10 @@ def generate_launch_description():
 
     gz_world = os.path.join(sim_pkg, 'worlds', f'{GZ_WORLD}.sdf')
     target_world = os.path.join(PX4_DIR, 'Tools', 'simulation', 'gz', 'worlds', f'{GZ_WORLD}.sdf')
+    
+    
+    print(f'gz_world: {gz_world}')
+    print(f'target_world: {target_world}')
     
     symlink_world = ExecuteProcess(
         cmd=['bash', '-c', f'ln -sf {gz_world} {target_world}'],
@@ -62,22 +66,23 @@ def generate_launch_description():
             bridge_config_file
         ],
         arguments=[
-            '/world/warehouse/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
-            '/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
-            '/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/image@sensor_msgs/msg/Image@gz.msgs.Image',
-            
+            '/depth_camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+            '/depth_camera/image@sensor_msgs/msg/Image@gz.msgs.Image',
+            '/depth_camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image',
             '/depth_camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
+            
+            '/world/warehouse_outdoor/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
 
-            '/world/warehouse/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
+            # '/world/warehouse/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
             '/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
         ],
         remappings=[
-            ('/world/warehouse/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu', '/imu/data'),
-            ('/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/image', '/camera/image_raw'),
-            ('/world/warehouse/model/x500_depth_0/link/camera_link/sensor/IMX214/camera_info', '/camera/camera_info'),
-            # ('/depth_camera', '/camera/depth/image'),
+            ('/depth_camera/camera_info', '/camera/camera_info'),
+            ('/depth_camera/image', '/camera/image_raw'),
+            ('/depth_camera/depth_image', '/camera/depth/image'),
             ('/depth_camera/points', '/camera/depth/points'),
-            ('/world/warehouse/clock', '/clock'),
+            ('/clock', '/clock'),
+            ('/world/warehouse_outdoor/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu', '/imu/data'),
         ],
         output='screen',
     )

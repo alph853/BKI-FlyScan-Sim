@@ -27,7 +27,7 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(MAVSDK REQUIRED)
+find_package(px4_msgs REQUIRED)
 
 # ───────────────────────────
 # Build Nodes
@@ -64,18 +64,19 @@ set(common_packages
   std_srvs
   geometry_msgs
   sensor_msgs
+  px4_msgs
 )
 
-add_target(px4_controller_lib   library     src/px4_controller.cpp 
-  "${common_packages}" MAVSDK::mavsdk
+add_target(teleop_node executable 
+  "src/teleop_node.cpp;src/px4_controller.cpp;src/util.cpp"
+  "${common_packages}"
+  ""
 )
 
-add_target(px4_control executable src/main.cpp
-    ""  px4_controller_lib
-)
-
-add_target(controller_node executable src/controller_node.cpp
-  "${common_packages}"  px4_controller_lib
+add_target(px4_ros_node executable 
+  "src/px4_ros_node_main.cpp;src/px4_ros_node.cpp;src/px4_controller.cpp;src/util.cpp"
+  "${common_packages}"
+  ""
 )
 
 # ───────────────────────────

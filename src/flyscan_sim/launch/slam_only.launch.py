@@ -9,12 +9,6 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    # Declare launch arguments
-    use_sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='true',
-        description='Use simulation (Gazebo) clock if true'
-    )
     
     # Path to SLAM Toolbox configuration file
     slam_config_file = PathJoinSubstitution([
@@ -22,7 +16,14 @@ def generate_launch_description():
         'config',
         'mapper_params_online_async.yaml'
     ])
-    
+
+    # Declare launch arguments
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation (Gazebo) clock if true'
+    )
+
     # Launch configuration variables
     use_sim_time = LaunchConfiguration('use_sim_time')
     
@@ -43,23 +44,23 @@ def generate_launch_description():
         name='pointcloud_to_laserscan',
         remappings=[
             ('cloud_in', '/camera/depth/points'),
-            # ('scan', '/scan'),
+            ('scan', '/scan'),
         ],
         parameters=[{
             'target_frame': 'base_link',
-            'transform_tolerance': 0.1,   # More relaxed
-            'min_height': -0.3,           # Narrower height range
-            'max_height': 0.3,
-            'angle_min': -2.356,          # 135 degrees instead of 180
-            'angle_max': 2.356,           # 135 degrees instead of 180  
-            'angle_increment': 0.0349066, # 2 degrees = ~180 points
+            'transform_tolerance': 0.2,      # More relaxed TF tolerance
+            'min_height': -1.0,              # Much taller slice to capture all relevant points
+            'max_height': 1.0,
+            'angle_min': -3.14159,           # Full 360 deg if sensor allows it
+            'angle_max': 3.14159,
+            'angle_increment': 0.00872665,   # ~0.5 degrees for more detail (~720 points)
             'scan_time': 0.0,
             'range_min': 0.2,
-            'range_max': 5.0,             # Shorter range
-            'use_inf': True,             # Disable inf processing
+            'range_max': 10.0,               # Longer range to include distant walls
+            'use_inf': True,                 # Keep inf for missing data (standard for SLAM)
             'use_sim_time': use_sim_time,
-            'concurrency_level': 4,          # Increase concurrency for faster processing
-            'queue_size': 20,             # Can reduce since we're processing faster
+            'concurrency_level': 1,          # Keep default, multi-threading rarely helps here
+            'queue_size': 10,                # Smaller queue to avoid stale data
         }]
     )
 
@@ -68,7 +69,7 @@ def generate_launch_description():
         executable='async_slam_toolbox_node',
         name='slam_toolbox',
         parameters=[
-            # slam_config_file,
+            slam_config_file,
             {
                 'use_sim_time': use_sim_time,
                 'base_frame': 'base_link',
@@ -81,23 +82,25 @@ def generate_launch_description():
                 'transform_publish_period': 0.02,
                 'map_update_interval': 5.0,
                 'resolution': 0.05,
-                'max_laser_range': 8.0,
+                'max_laser_range': 5.0,
                 'minimum_travel_distance': 0.5,
                 'minimum_travel_heading': 0.5,
-                'laserMaxRange': 8.0,
+                'laserMaxRange': 5.0,
                 'useLaserScanBaryCentering': True,
                 'minimumTimeInterval': 0.5,
                 'transformPublishPeriod': 0.02,
                 'mapUpdateInterval': 5.0,
+                "mode": "mapping",
             }
         ],
         remappings=[
             ('scan', '/scan'),
-            ('odom', '/odom'),
+            # ('odom', '/odom'),
         ],
     )
     
     # Static transform publisher for camera to base_link
+
     static_tf_camera_to_base = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
@@ -106,16 +109,36 @@ def generate_launch_description():
             '--x', '0',
             '--y', '0',
             '--z', '0.3',
-            '--roll', '0',
-            '--pitch', '0',
-            '--yaw', '0',
+            '--qx', '0',
+            '--qy', '0',
+            '--qz', '0',
+            '--qw', '1',
             '--frame-id', 'base_link',
             '--child-frame-id', 'x500_depth_0/camera_link/StereoOV7251'
         ],
         parameters=[{
-            'use_sim_time': use_sim_time
+            'use_sim_time': True
         }]
     )
+
+    # static_tf_camera_to_base = Node(
+    #     package='tf2_ros',
+    #     executable='static_transform_publisher',
+    #     name='camera_to_base_link',
+    #     arguments=[
+    #         '0',     # x
+    #         '0',     # y  
+    #         '0.3',   # z
+    #         '0',     # roll
+    #         '0',     # pitch
+    #         '0',     # yaw
+    #         'base_link',  # parent frame
+    #         'x500_depth_0/camera_link/StereoOV7251'  # child frame
+    #     ],
+    #     parameters=[{
+    #         'use_sim_time': use_sim_time
+    #     }]
+    # )
 
     configure_slam = ExecuteProcess(
         cmd=['ros2', 'lifecycle', 'set', '/slam_toolbox', 'configure'],

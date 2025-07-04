@@ -11,24 +11,19 @@ gz_bridge:
       /camera/image_raw:
         reliability: best_effort
         durability: volatile
-        depth: 10
+        depth: 60
       
-      /camera/depth/image_raw:
+      /camera/depth/image:
+        reliability: best_effort
+        durability: volatile
+        depth: 60
+      
+      /camera/camera_info:
         reliability: best_effort
         durability: volatile
         depth: 10
         
       /camera/depth/points:
         reliability: best_effort
-        durability: volatile
-        depth: 5
-        
-      /imu/data:
-        reliability: reliable
-        durability: volatile
-        depth: 50
-        
-      /odom:
-        reliability: reliable
         durability: volatile
         depth: 10

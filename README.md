@@ -1,48 +1,31 @@
-# Autonomous UAV System
+param set COM_ARM_IMU_ACC 0    # Disable accel calibration check
+param set COM_ARM_MAG_STR 0    # Disable compass calibration check
+param set COM_ARM_MAG_ANG 0    # Disable compass angle check
 
-A comprehensive autonomous unmanned aerial vehicle (UAV) system built with ROS 2, featuring lifecycle-managed nodes for exploration, semantic mapping, SLAM, and navigation.
+param set SYS_HAS_MAG 0    # Disable compass angle check
+param set SYS_HAS_BARO 0    # Disable baro
 
-## Overview
+param set SYS_HAS_GPS 0           # Tell system GPS not required
+param set COM_ARM_WO_GPS 1
 
-This project implements a fully autonomous UAV system capable of:
-- **Visual-Inertial Odometry (VIO)** for real-time pose estimation
-- **Pose Graph SLAM** for robust localization and mapping
-- **Semantic Mapping** for environment understanding and object detection
-- **Autonomous Exploration** with frontier detection and path planning
-- **Multi-layer Map Fusion** through the Hypermap Server
-- **Intelligent Navigation** with obstacle avoidance
-- **Application-level Mission Control** for high-level task execution
-- **Lifecycle Management** with fault detection and recovery
 
-## System Architecture
+# Enable external vision as position source
+param set EKF2_EV_CTRL 15         # Enable vision pos, vel, yaw fusion
+param set EKF2_HGT_REF 3          # Use vision for height reference
+param set EKF2_GPS_CTRL 0         # Disable GPS completely
 
-### Node Hierarchy and Dependencies
-<!--  -->
-The system follows a carefully orchestrated startup sequence managed by the LifeMonitor:
+# Vision sensor configuration
+param set EKF2_EV_DELAY 10        # Vision delay (ms)
+param set EKF2_EV_NOISE_MD 0      # Vision noise mode
+param set EKF2_EV_POS_X 0.0       # Camera position relative to IMU
+param set EKF2_EV_POS_Y 0.0
+param set EKF2_EV_POS_Z 0.0
 
-### Core Components
+# Tune vision noise parameters
+param set EKF2_EVP_NOISE 0.1      # Vision position noise
+param set EKF2_EVV_NOISE 0.1      # Vision velocity noise
+param set EKF2_EVA_NOISE 0.05     # Vision angle noise
 
-xxx
+# Allow arming with vision
+param set COM_ARM_WO_GPS 1
 
-### Run
-
-#### ROS2 Node CLI
-
-```bash
-ros2 node list
-```
-
-#### Lifecycle Nodes CLI
-
-```bash
-# Download the latest AppImage (example for x86_64)
-wget https://d176tv9ibo4jno.cloudfront.net/latest/QGroundControl.AppImage
-
-# Make it executable
-chmod +x QGroundControl.AppImage
-
-# Optionally move it to /usr/local/bin for global access
-sudo mv QGroundControl.AppImage /usr/local/bin/qgroundcontrol
-```
-
-Transitions are: `configure, activate, deactivate, cleanup, shutdown`

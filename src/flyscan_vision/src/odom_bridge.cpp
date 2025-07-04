@@ -3,6 +3,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "px4_msgs/msg/vehicle_odometry.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "tf2_ros/transform_broadcaster.h"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 
 class OdometryBridge : public rclcpp::Node
 {
@@ -16,9 +18,13 @@ public:
       rclcpp::SensorDataQoS(),
       std::bind(&OdometryBridge::vehicleOdomCallback, this, std::placeholders::_1)
     );
-
-    // Publish standard nav_msgs Odometry
+    if (!this->has_parameter("use_sim_time")) {
+      this->declare_parameter<bool>("use_sim_time", false);
+    }    // Publish standard nav_msgs Odometry
     odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+    
+    // Initialize TF broadcaster
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
   }
 
 private:
@@ -28,7 +34,6 @@ private:
     odom_msg.header.stamp = this->get_clock()->now();
     odom_msg.header.frame_id = "odom";
     odom_msg.child_frame_id = "base_link";
-
     // Position
     odom_msg.pose.pose.position.x = msg->position[0];
     odom_msg.pose.pose.position.y = msg->position[1];
@@ -51,10 +56,25 @@ private:
     odom_msg.twist.twist.angular.z = msg->angular_velocity[2];
 
     odom_pub_->publish(odom_msg);
+    
+    // Broadcast odom to base_link transform
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header.stamp = odom_msg.header.stamp;
+    transform.header.frame_id = "odom";
+    transform.child_frame_id = "base_link";
+    
+    transform.transform.translation.x = odom_msg.pose.pose.position.x; 
+    transform.transform.translation.y = odom_msg.pose.pose.position.y;
+    transform.transform.translation.z = odom_msg.pose.pose.position.z;
+    
+    transform.transform.rotation = odom_msg.pose.pose.orientation;
+    
+    tf_broadcaster_->sendTransform(transform);
   }
 
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr vehicle_odom_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 };
 
 int main(int argc, char *argv[])
