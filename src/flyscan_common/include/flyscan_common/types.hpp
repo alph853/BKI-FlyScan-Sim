@@ -30,9 +30,6 @@ namespace flyscan {
 namespace common {
 
 namespace core_types {
-
-    using LifecycleNode = rclcpp_lifecycle::LifecycleNode;
-
     using LifecycleCallbackReturn   = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
     using LifecycleState            = rclcpp_lifecycle::State;
     using LifecycleStateMsg         = lifecycle_msgs::msg::State;

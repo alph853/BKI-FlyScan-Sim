@@ -23,11 +23,16 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(px4_msgs REQUIRED)
+
+find_package(flyscan_common REQUIRED)
+find_package(flyscan_core REQUIRED)
+find_package(flyscan_interfaces REQUIRED)
 
 # ───────────────────────────
 # Build Nodes
@@ -65,16 +70,25 @@ set(common_packages
   geometry_msgs
   sensor_msgs
   px4_msgs
+
+  flyscan_common
+  flyscan_interfaces
 )
+
+add_target(px4_controller executable 
+  "src/px4_controller_main.cpp;src/px4_controller.cpp;src/util.cpp;src/terminal_controller.cpp"
+  "${common_packages}"
+  flyscan_core::base_node
+)
+add_target(px4_controller_component library
+  "src/px4_controller.cpp;src/util.cpp;src/terminal_controller.cpp"
+  "${common_packages}"
+  flyscan_core::base_node
+)
+rclcpp_components_register_nodes(px4_controller_component "flyscan::drone_controller::PX4Controller")
 
 add_target(teleop_node executable 
-  "src/teleop_node.cpp;src/px4_controller.cpp;src/util.cpp"
-  "${common_packages}"
-  ""
-)
-
-add_target(px4_ros_node executable 
-  "src/px4_ros_node_main.cpp;src/px4_ros_node.cpp;src/px4_controller.cpp;src/util.cpp"
+  "src/teleop_node_main.cpp;src/teleop_node.cpp"
   "${common_packages}"
   ""
 )
@@ -85,8 +99,8 @@ add_target(px4_ros_node executable
 
 install(TARGETS ${NODE_TARGETS}
   EXPORT ${PROJECT_NAME}-targets
-  ARCHIVE DESTINATION lib/${PROJECT_NAME}
-  LIBRARY DESTINATION lib/${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/ DESTINATION include/)

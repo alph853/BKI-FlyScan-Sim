@@ -48,7 +48,23 @@ enum class NodeType : uint8_t
     kPlanning    = 4,
     kManaging    = 5,
     kVision      = 6,
+    kController  = 7,
 
+    kUnknown     = 99,
+};
+
+/**
+ * @brief Control mode for drone controller
+ */
+enum class ControlMode : uint8_t
+{
+    kManual      = 0,  ///< Manual control, no automation
+    kTeleop      = 1,  ///< Teleoperation with keyboard control
+    kAutonomous  = 2,  ///< Autonomous navigation and control
+    kMission     = 3,  ///< Mission execution mode
+    kRTL         = 4,  ///< Return to launch
+    kLand        = 5,  ///< Landing mode
+    
     kUnknown     = 99,
 };
 
@@ -102,6 +118,27 @@ inline std::string NodeTypeToString(const NodeType& type)
             return "Vision";
         default:
             return "Unknown";
+    }
+}
+
+inline std::string ControlModeToString(const ControlMode& mode)
+{
+    switch (mode)
+    {
+        case ControlMode::kManual:
+            return "MANUAL";
+        case ControlMode::kTeleop:
+            return "TELEOP";
+        case ControlMode::kAutonomous:
+            return "AUTONOMOUS";
+        case ControlMode::kMission:
+            return "MISSION";
+        case ControlMode::kRTL:
+            return "RTL";
+        case ControlMode::kLand:
+            return "LAND";
+        default:
+            return "UNKNOWN";
     }
 }
 

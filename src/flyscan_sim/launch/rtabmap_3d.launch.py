@@ -4,9 +4,10 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch.actions import ExecuteProcess
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution
-import os
+
 
 def generate_launch_description():
     
@@ -44,9 +45,9 @@ def generate_launch_description():
         executable='static_transform_publisher',
         name='camera_to_base_link',
         arguments=[
-            '--x', '0',
-            '--y', '0',
-            '--z', '0.3',
+            '--x', '0.01233',
+            '--y', '-0.03',
+            '--z', '0.01878',
             '--qx', '0',
             '--qy', '0',
             '--qz', '0',
@@ -99,17 +100,7 @@ def generate_launch_description():
         output='screen',
         arguments=['--delete_db_on_start']
     )
-    # RViz2 node
-    rviz_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-        }],
-        output='screen'
-    )
-    
+
     rtabmap_viz = Node(
         package='rtabmap_viz',
         executable='rtabmap_viz',
@@ -127,6 +118,11 @@ def generate_launch_description():
         ],
         output='screen'
     )
+    
+    rviz2 = ExecuteProcess(
+        cmd=['rviz2'],
+        output='screen'
+    )
 
     return LaunchDescription([
         use_sim_time_arg,
@@ -134,6 +130,6 @@ def generate_launch_description():
         static_tf_camera_to_base,
         static_tf_imu_to_base,
         rtabmap_node,
-        # rviz_node,
-        rtabmap_viz,
+        # rtabmap_viz,
+        rviz2
     ])

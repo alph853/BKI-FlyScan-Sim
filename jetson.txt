@@ -1,0 +1,696 @@
+project-structure/
+├── docker-compose.yml
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── main.py
+│   └── network_manager.py
+├── frontend/
+│   ├── index.html
+│   ├── style.css
+│   └── script.js
+└── scripts/
+    ├── setup_hotspot.sh
+    └── init.sh
+
+---
+FILE: docker-compose.yml
+---
+version: '3.8'
+
+services:
+  wifi-config:
+    build: ./backend
+    container_name: jetson-wifi-config
+    network_mode: host
+    privileged: true
+    volumes:
+      - /etc/NetworkManager:/etc/NetworkManager
+      - /var/run/dbus:/var/run/dbus
+      - ./scripts:/scripts
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    command: ["sh", "-c", "/scripts/init.sh && python main.py"]
+
+---
+FILE: backend/Dockerfile
+---
+
+FROM python:3.9-alpine
+
+RUN apk add --no-cache \
+    networkmanager \
+    networkmanager-wifi \
+    dbus \
+    iw \
+    wireless-tools \
+    hostapd \
+    dnsmasq \
+    iptables
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 80
+
+---
+FILE: backend/requirements.txt
+---
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+pydbus==0.6.0
+
+---
+FILE: backend/main.py
+---
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel
+import os
+import uvicorn
+from network_manager import NetworkManager
+
+app = FastAPI()
+nm = NetworkManager()
+
+class WiFiCredentials(BaseModel):
+    ssid: str
+    password: str = ""
+
+@app.get("/")
+async def root():
+    # Redirect to config page
+    return RedirectResponse(url="/config")
+
+@app.get("/config")
+async def config_page():
+    with open("/app/frontend/index.html", "r") as f:
+        return HTMLResponse(content=f.read())
+
+@app.get("/api/networks")
+async def get_networks():
+    """Get list of available WiFi networks"""
+    try:
+        networks = nm.scan_networks()
+        return {"networks": networks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/saved-networks")
+async def get_saved_networks():
+    """Get list of saved network SSIDs"""
+    try:
+        saved = nm.get_saved_networks()
+        return {"saved_networks": saved}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/connect")
+async def connect_wifi(credentials: WiFiCredentials):
+    """Connect to selected WiFi network"""
+    try:
+        # Check if network is saved
+        saved_networks = nm.get_saved_networks()
+        
+        if credentials.ssid in saved_networks and not credentials.password:
+            # Use saved credentials
+            result = nm.connect_to_saved(credentials.ssid)
+        else:
+            # Connect with new credentials
+            result = nm.connect_to_network(credentials.ssid, credentials.password)
+        
+        if result["success"]:
+            # Disable hotspot after successful connection
+            nm.disable_hotspot()
+            
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Serve static files
+app.mount("/static", StaticFiles(directory="/app/frontend"), name="static")
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=80)
+
+---
+FILE: backend/network_manager.py
+---
+import subprocess
+import time
+import re
+import os
+
+class NetworkManager:
+    def __init__(self):
+        self.interface = "wlan0"
+        
+    def scan_networks(self):
+        """Scan for available WiFi networks"""
+        try:
+            # Use nmcli to scan
+            cmd = ["nmcli", "-t", "-f", "SSID,SIGNAL,FREQ,SECURITY", "dev", "wifi", "list"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            networks = []
+            seen_ssids = set()
+            
+            for line in result.stdout.strip().split('\n'):
+                if line:
+                    parts = line.split(':')
+                    if len(parts) >= 4 and parts[0] and parts[0] not in seen_ssids:
+                        ssid = parts[0]
+                        signal = int(parts[1]) if parts[1] else 0
+                        freq = float(parts[2]) if parts[2] else 0
+                        security = parts[3] if len(parts) > 3 else ""
+                        
+                        # Determine band
+                        band = "5GHz" if freq > 5000 else "2.4GHz"
+                        
+                        networks.append({
+                            "ssid": ssid,
+                            "signal": signal,
+                            "band": band,
+                            "security": security,
+                            "secured": bool(security and security != "--")
+                        })
+                        seen_ssids.add(ssid)
+            
+            # Sort by signal strength
+            networks.sort(key=lambda x: x["signal"], reverse=True)
+            return networks
+            
+        except Exception as e:
+            print(f"Error scanning networks: {e}")
+            return []
+    
+    def get_saved_networks(self):
+        """Get list of saved network SSIDs"""
+        try:
+            cmd = ["nmcli", "-t", "-f", "NAME", "connection", "show"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            saved = []
+            for line in result.stdout.strip().split('\n'):
+                if line and not line.startswith("UAV-JETSON-CONFIG"):
+                    saved.append(line)
+            
+            return saved
+            
+        except Exception as e:
+            print(f"Error getting saved networks: {e}")
+            return []
+    
+    def connect_to_network(self, ssid, password):
+        """Connect to a WiFi network with credentials"""
+        try:
+            # Delete existing connection if exists
+            subprocess.run(["nmcli", "connection", "delete", ssid], 
+                         capture_output=True)
+            
+            # Create new connection
+            if password:
+                cmd = [
+                    "nmcli", "dev", "wifi", "connect", ssid,
+                    "password", password, "ifname", self.interface
+                ]
+            else:
+                cmd = [
+                    "nmcli", "dev", "wifi", "connect", ssid,
+                    "ifname", self.interface
+                ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                # Wait for connection
+                time.sleep(3)
+                
+                # Verify connection
+                verify_cmd = ["nmcli", "-t", "-f", "GENERAL.STATE", "dev", "show", self.interface]
+                verify_result = subprocess.run(verify_cmd, capture_output=True, text=True)
+                
+                if "100 (connected)" in verify_result.stdout:
+                    return {"success": True, "message": "Connected successfully"}
+                else:
+                    return {"success": False, "message": "Connection failed"}
+            else:
+                return {"success": False, "message": result.stderr or "Connection failed"}
+                
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def connect_to_saved(self, ssid):
+        """Connect to a saved network"""
+        try:
+            cmd = ["nmcli", "connection", "up", ssid]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                time.sleep(3)
+                return {"success": True, "message": "Connected to saved network"}
+            else:
+                return {"success": False, "message": "Failed to connect to saved network"}
+                
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+    
+    def disable_hotspot(self):
+        """Disable the hotspot"""
+        try:
+            subprocess.run(["nmcli", "connection", "down", "UAV-JETSON-CONFIG"],
+                         capture_output=True)
+            return True
+        except:
+            return False
+
+---
+FILE: frontend/index.html
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jetson WiFi Configuration</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Jetson WiFi Configuration</h1>
+        
+        <div id="loading" class="loading">Scanning for networks...</div>
+        
+        <div id="networks-container" style="display: none;">
+            <h2>Available Networks</h2>
+            <div id="networks-list"></div>
+        </div>
+        
+        <div id="password-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>Enter Password for <span id="selected-ssid"></span></h3>
+                <input type="password" id="password-input" placeholder="Password">
+                <div class="modal-buttons">
+                    <button onclick="connect()">Connect</button>
+                    <button onclick="closeModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status-message" class="status-message" style="display: none;"></div>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>
+
+---
+FILE: frontend/style.css
+---
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 30px;
+}
+
+h2 {
+    color: #34495e;
+    margin-bottom: 20px;
+    font-size: 1.2em;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+}
+
+.network-item {
+    padding: 15px;
+    margin: 10px 0;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.network-item:hover {
+    background: #e9ecef;
+    border-color: #dee2e6;
+}
+
+.network-info {
+    flex: 1;
+}
+
+.network-ssid {
+    font-weight: 500;
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+
+.network-details {
+    font-size: 0.85em;
+    color: #7f8c8d;
+}
+
+.signal-indicator {
+    font-size: 0.9em;
+    color: #27ae60;
+}
+
+.saved-badge {
+    background: #3498db;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    margin-left: 10px;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.modal-content h3 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+button:first-child {
+    background: #3498db;
+    color: white;
+}
+
+button:first-child:hover {
+    background: #2980b9;
+}
+
+button:last-child {
+    background: #ecf0f1;
+    color: #333;
+}
+
+button:last-child:hover {
+    background: #bdc3c7;
+}
+
+.status-message {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.status-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+---
+FILE: frontend/script.js
+---
+let selectedNetwork = null;
+let savedNetworks = [];
+
+async function loadNetworks() {
+    try {
+        // Get saved networks first
+        const savedResponse = await fetch('/api/saved-networks');
+        const savedData = await savedResponse.json();
+        savedNetworks = savedData.saved_networks || [];
+        
+        // Get available networks
+        const response = await fetch('/api/networks');
+        const data = await response.json();
+        
+        displayNetworks(data.networks);
+    } catch (error) {
+        showStatus('Failed to load networks', 'error');
+    }
+}
+
+function displayNetworks(networks) {
+    const container = document.getElementById('networks-list');
+    container.innerHTML = '';
+    
+    networks.forEach(network => {
+        const div = document.createElement('div');
+        div.className = 'network-item';
+        div.onclick = () => selectNetwork(network);
+        
+        const isSaved = savedNetworks.includes(network.ssid);
+        
+        div.innerHTML = `
+            <div class="network-info">
+                <div class="network-ssid">
+                    ${network.ssid}
+                    ${isSaved ? '<span class="saved-badge">SAVED</span>' : ''}
+                </div>
+                <div class="network-details">
+                    ${network.band} • ${network.secured ? '🔒 Secured' : '🔓 Open'}
+                </div>
+            </div>
+            <div class="signal-indicator">
+                ${getSignalBars(network.signal)}
+            </div>
+        `;
+        
+        container.appendChild(div);
+    });
+    
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('networks-container').style.display = 'block';
+}
+
+function getSignalBars(signal) {
+    if (signal >= 80) return '▂▄▆█';
+    if (signal >= 60) return '▂▄▆_';
+    if (signal >= 40) return '▂▄__';
+    return '▂___';
+}
+
+function selectNetwork(network) {
+    selectedNetwork = network;
+    
+    const isSaved = savedNetworks.includes(network.ssid);
+    
+    if (network.secured && !isSaved) {
+        // Show password modal
+        document.getElementById('selected-ssid').textContent = network.ssid;
+        document.getElementById('password-modal').style.display = 'flex';
+        document.getElementById('password-input').focus();
+    } else {
+        // Connect directly (open network or saved network)
+        connect();
+    }
+}
+
+async function connect() {
+    const password = document.getElementById('password-input').value;
+    
+    closeModal();
+    showStatus('Connecting...', 'info');
+    
+    try {
+        const response = await fetch('/api/connect', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ssid: selectedNetwork.ssid,
+                password: password
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showStatus('Connected successfully! The hotspot will now be disabled.', 'success');
+            setTimeout(() => {
+                showStatus('You can now connect to the same network to access the Jetson.', 'success');
+            }, 3000);
+        } else {
+            showStatus(result.message || 'Connection failed', 'error');
+        }
+    } catch (error) {
+        showStatus('Connection error', 'error');
+    }
+}
+
+function closeModal() {
+    document.getElementById('password-modal').style.display = 'none';
+    document.getElementById('password-input').value = '';
+}
+
+function showStatus(message, type) {
+    const statusEl = document.getElementById('status-message');
+    statusEl.textContent = message;
+    statusEl.className = `status-message ${type}`;
+    statusEl.style.display = 'block';
+}
+
+// Handle Enter key in password input
+document.getElementById('password-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        connect();
+    }
+});
+
+// Load networks when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    loadNetworks();
+    // Refresh every 10 seconds
+    setInterval(loadNetworks, 10000);
+});
+
+---
+FILE: scripts/setup_hotspot.sh
+---
+#!/bin/sh
+
+# Configure hotspot using NetworkManager
+nmcli connection delete "UAV-JETSON-CONFIG" 2>/dev/null
+
+# Create hotspot
+nmcli connection add \
+    type wifi \
+    ifname wlan0 \
+    con-name "UAV-JETSON-CONFIG" \
+    autoconnect no \
+    ssid "UAV-JETSON-CONFIG"
+
+nmcli connection modify "UAV-JETSON-CONFIG" \
+    802-11-wireless.mode ap \
+    802-11-wireless.band bg \
+    ipv4.method shared \
+    ipv4.addresses 192.168.4.1/24 \
+    wifi-sec.key-mgmt wpa-psk \
+    wifi-sec.psk "uavpilots"
+
+# Start hotspot
+nmcli connection up "UAV-JETSON-CONFIG"
+
+# Configure dnsmasq for captive portal
+cat > /etc/dnsmasq.conf << EOF
+interface=wlan0
+bind-interfaces
+server=8.8.8.8
+domain-needed
+bogus-priv
+dhcp-range=192.168.4.2,192.168.4.100,12h
+address=/#/192.168.4.1
+EOF
+
+# Restart dnsmasq
+killall dnsmasq 2>/dev/null
+dnsmasq
+
+# Configure iptables for captive portal
+iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j DNAT --to-destination 192.168.4.1:80
+iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 443 -j DNAT --to-destination 192.168.4.1:80
+
+---
+FILE: scripts/init.sh
+---
+#!/bin/sh
+
+# Wait for system to be ready
+sleep 5
+
+# Start D-Bus if not running
+if ! pgrep -x "dbus-daemon" > /dev/null; then
+    dbus-daemon --system --fork
+fi
+
+# Start NetworkManager if not running
+if ! pgrep -x "NetworkManager" > /dev/null; then
+    NetworkManager --no-daemon &
+    sleep 3
+fi
+
+# Setup hotspot
+/scripts/setup_hotspot.sh
+
+echo "Hotspot setup complete"

@@ -14,7 +14,7 @@ LifeMonitor::LifeMonitor(const rclcpp::NodeOptions & options)
     RCLCPP_INFO(this->get_logger(), "LifeMonitor node initializing");
 
     using namespace std::placeholders;
-    namespace srv = flyscan::common::constants::srv;
+    using namespace flyscan::common::constants;
 
     /*
      * Services providers
@@ -150,9 +150,10 @@ void LifeMonitor::HandleRegisterNode(
 
     response->success   = true;
     response->node_id   = node_id;
+    response->heartbeat_topic = heartbeat_topic;
     response->message   = "Node registered successfully with heartbeat monitoring";
     
-    RCLCPP_INFO(this->get_logger(), "Node %s registered with ID: %s, Heartbeat Topic: %s", 
+    RCLCPP_INFO(this->get_logger(), "Node %s registered with given ID: %s, Heartbeat Topic: %s", 
                 request->node_name.c_str(), node_id.c_str(), heartbeat_topic.c_str());
 }
 

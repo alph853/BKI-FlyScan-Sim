@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jetson WiFi Configuration</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Jetson WiFi Configuration</h1>
+        
+        <div id="loading" class="loading">Scanning for networks...</div>
+        
+        <div id="networks-container" style="display: none;">
+            <h2>Available Networks</h2>
+            <div id="networks-list"></div>
+        </div>
+        
+        <div id="password-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>Enter Password for <span id="selected-ssid"></span></h3>
+                <input type="password" id="password-input" placeholder="Password">
+                <div class="modal-buttons">
+                    <button onclick="connect()">Connect</button>
+                    <button onclick="closeModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status-message" class="status-message" style="display: none;"></div>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>
+
+---
+FILE: frontend/style.css
+---
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 30px;
+}
+
+h2 {
+    color: #34495e;
+    margin-bottom: 20px;
+    font-size: 1.2em;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+}
+
+.network-item {
+    padding: 15px;
+    margin: 10px 0;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.network-item:hover {
+    background: #e9ecef;
+    border-color: #dee2e6;
+}
+
+.network-info {
+    flex: 1;
+}
+
+.network-ssid {
+    font-weight: 500;
+    color: #2c3e50;
+    margin-bottom: 5px;
+}
+
+.network-details {
+    font-size: 0.85em;
+    color: #7f8c8d;
+}
+
+.signal-indicator {
+    font-size: 0.9em;
+    color: #27ae60;
+}
+
+.saved-badge {
+    background: #3498db;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    margin-left: 10px;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.modal-content h3 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+button:first-child {
+    background: #3498db;
+    color: white;
+}
+
+button:first-child:hover {
+    background: #2980b9;
+}
+
+button:last-child {
+    background: #ecf0f1;
+    color: #333;
+}
+
+button:last-child:hover {
+    background: #bdc3c7;
+}
+
+.status-message {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.status-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}

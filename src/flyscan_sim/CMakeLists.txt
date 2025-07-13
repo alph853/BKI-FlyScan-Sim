@@ -6,6 +6,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(flyscan_drone_controller REQUIRED)
 find_package(ros_gz REQUIRED)
 
 install(DIRECTORY launch/

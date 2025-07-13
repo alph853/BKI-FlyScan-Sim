@@ -22,19 +22,16 @@ endif()
 # ───────────────────────────
 
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(flyscan_common REQUIRED)
 
 # ───────────────────────────
 # Build Nodes
 # ───────────────────────────
 
-set(common_packages
-  flyscan_common
-)
-
 set(NODE_TARGETS)
 
-macro(add_target name type source deps)
+macro(add_target name type source deps libs)
   if(${type} STREQUAL "executable")
     add_executable(${name} ${source})
     target_include_directories(${name}
@@ -50,12 +47,22 @@ macro(add_target name type source deps)
     )
   endif()
 
+  target_link_libraries(${name} ${libs})
+
   ament_target_dependencies(${name} ${deps})
+
   list(APPEND NODE_TARGETS ${name})
 endmacro()
 
-add_target(life_monitor   executable  src/life_monitor.cpp  ${common_packages})
-add_target(base_node      library     src/base_node.cpp     ${common_packages})
+add_target(life_monitor   executable  src/life_monitor.cpp  flyscan_common  "")
+add_target(base_node      library     src/base_node.cpp     flyscan_common  "")
+
+add_target(life_monitor_component library
+  src/life_monitor.cpp
+  flyscan_common
+  ""
+)
+rclcpp_components_register_nodes(life_monitor_component "flyscan::core::LifeMonitor")
 
 # ───────────────────────────
 # Install Rules
@@ -63,8 +70,8 @@ add_target(base_node      library     src/base_node.cpp     ${common_packages})
 
 install(TARGETS ${NODE_TARGETS}
   EXPORT ${PROJECT_NAME}-targets
-  ARCHIVE DESTINATION lib/${PROJECT_NAME}
-  LIBRARY DESTINATION lib/${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(EXPORT ${PROJECT_NAME}-targets

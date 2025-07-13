@@ -56,7 +56,7 @@ namespace qos {
 }
 
 namespace timer {
-    constexpr const uint16_t REQUEST_TIMEOUT_MS  = 5000;
+    constexpr const uint16_t REQUEST_TIMEOUT_MS  = 10000;
     constexpr const uint16_t SERVICE_TIMEOUT_MS  = 10000;
 
     constexpr std::chrono::milliseconds HEARTBEAT_PUB_PERIOD{1000};

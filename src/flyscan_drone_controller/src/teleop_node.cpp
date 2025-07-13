@@ -1,250 +1,244 @@
-#include "flyscan_drone_controller/px4_controller.hpp"
-#include "flyscan_drone_controller/util.hpp"
-
-#include <rclcpp/rclcpp.hpp>
-#include <csignal>
 #include <iostream>
-#include <thread>
 #include <chrono>
 
-using namespace flyscan_drone_controller;
+#include "flyscan_common/util.hpp"
+#include "flyscan_drone_controller/teleop_node.hpp"
 
-void teleopControlLoop(PX4Controller& controller) {
-    util::TerminalController::printTeleopInstructions();
-    
-    const float POSITION_STEP = 0.5f;
-    const float YAW_STEP = 10.0f;
-    const int COMMAND_RATE_LIMIT_MS = 100; // Minimum 200ms between position commands
-    
-    TeleopCommand target_position{};
-    target_position.north_m = 0.0f;
-    target_position.east_m = 0.0f;
-    target_position.down_m = -1.5f;  // Default takeoff position
-    target_position.yaw_deg = 0.0f;
-    
-    std::cout << "Ready for teleop commands. Press 'T' to takeoff, 'P' to land" << std::endl;
-    
-    bool offboard_started = false;
-    bool should_exit = false;
-    auto last_command_time = std::chrono::steady_clock::now();
-    char last_key = 0;
-    
-    while (!should_exit) {
-        char key = util::TerminalController::getch();
-        
-        if (key != 0) {
-            // Rate limiting for movement commands
-            auto current_time = std::chrono::steady_clock::now();
-            auto time_since_last_command = std::chrono::duration_cast<std::chrono::milliseconds>(
-                current_time - last_command_time).count();
-            
-            bool is_movement_key = (key == 'w' || key == 'W' || key == 's' || key == 'S' ||
-                                   key == 'a' || key == 'A' || key == 'd' || key == 'D' ||
-                                   key == 'q' || key == 'Q' || key == 'e' || key == 'E' ||
-                                   key == 'j' || key == 'J' || key == 'l' || key == 'L');
-            
-            // Skip if it's a movement key and rate limit hasn't passed, unless it's a different key
-            if (is_movement_key && time_since_last_command < COMMAND_RATE_LIMIT_MS && key == last_key) {
-                continue;
-            }
-            
-            std::string feedback = ">> ";
-            bool position_changed = false;
-            
-            switch (key) {
-                case 't': case 'T':
-                    if (!offboard_started) {
-                        std::cout << "Starting takeoff..." << std::endl;
-                        controller.takeoffToPosition();
-                        offboard_started = true;
-                        feedback += "TAKEOFF INITIATED";
-                    } else {
-                        feedback += "ALREADY IN OFFBOARD MODE";
-                    }
-                    break;
-                    
-                case 'w': case 'W':
-                    if (offboard_started) {
-                        target_position.north_m -= POSITION_STEP;
-                        feedback += "FORWARD";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 's': case 'S':
-                    if (offboard_started) {
-                        target_position.north_m += POSITION_STEP;
-                        feedback += "BACKWARD";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 'a': case 'A':
-                    if (offboard_started) {
-                        target_position.east_m += POSITION_STEP;
-                        feedback += "LEFT";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 'd': case 'D':
-                    if (offboard_started) {
-                        target_position.east_m -= POSITION_STEP;
-                        feedback += "RIGHT";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 'q': case 'Q':
-                    if (offboard_started) {
-                        target_position.down_m -= POSITION_STEP;
-                        feedback += "UP";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 'e': case 'E':
-                    if (offboard_started) {
-                        target_position.down_m += POSITION_STEP;
-                        feedback += "DOWN";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 'j': case 'J':
-                    if (offboard_started) {
-                        target_position.yaw_deg -= YAW_STEP;
-                        target_position.yaw_deg = util::MathUtils::constrainAngle(target_position.yaw_deg);
-                        feedback += "YAW LEFT";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 'l': case 'L':
-                    if (offboard_started) {
-                        target_position.yaw_deg += YAW_STEP;
-                        target_position.yaw_deg = util::MathUtils::constrainAngle(target_position.yaw_deg);
-                        feedback += "YAW RIGHT";
-                        position_changed = true;
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 'p': case 'P':
-                    if (offboard_started) {
-                        std::cout << "Landing..." << std::endl;
-                        controller.land();
-                        feedback += "LANDING INITIATED";
-                        offboard_started = false;
-                    } else {
-                        feedback += "NOT IN OFFBOARD MODE";
-                    }
-                    break;
-                    
-                case ' ':
-                    if (offboard_started) {
-                        feedback += "HOLD POSITION";
-                    } else {
-                        feedback += "TAKEOFF FIRST (press T)";
-                    }
-                    break;
-                    
-                case 27: // ESC
-                    std::cout << "Exiting teleop mode..." << std::endl;
-                    should_exit = true;
-                    break;
-                    
-                default:
-                    continue;
-            }
-            
-            if (!should_exit) {
-                if (position_changed && offboard_started) {
-                    controller.updateTeleopCommand(target_position);
-                    feedback += " -> " + util::StringUtils::formatPosition(
-                        target_position.north_m, target_position.east_m, target_position.down_m);
-                    // Update rate limiting tracking for movement commands
-                    if (is_movement_key) {
-                        last_command_time = current_time;
-                        last_key = key;
-                    }
-                }
-                
-                std::cout << "\r" << std::string(80, ' ') << "\r";
-                std::cout << feedback << std::flush;
-            }
-        }
-        
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    
-    std::cout << "Teleop control loop ended" << std::endl;
-}
+using namespace std::chrono_literals;
+using flyscan::common::sync_send_request;
 
-int main(int argc, char** argv) {
-    // Initialize ROS2
-    rclcpp::init(argc, argv);
+namespace flyscan {
+namespace drone_controller {
+
+TeleopNode::TeleopNode() 
+    : Node("teleop_node"), terminal_configured_(false), teleop_active_(false) {
     
-    // Initialize terminal control
-    if (!util::TerminalController::initialize()) {
-        std::cerr << "Failed to initialize terminal control" << std::endl;
-        return 1;
+    // Initialize ROS2 interfaces
+    mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>("/px4_controller/set_control_mode");
+    teleop_pub_ = this->create_publisher<flyscan_interfaces::msg::TeleopCommand>("/px4_controller/teleop_command", 10);
+
+    // Initialize terminal for keyboard input
+    if (!initializeTerminal()) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to initialize terminal. Teleop will not work.");
+        return;
     }
-    
-    // Setup signal handler
-    std::signal(SIGINT, [](int) {
-        util::TerminalController::cleanup();
-        rclcpp::shutdown();
-        std::exit(0);
-    });
+
+    auto request = std::make_shared<flyscan_interfaces::srv::SetControlMode::Request>();
+    request->mode = 1; // TELEOP mode
+
+    flyscan_interfaces::srv::SetControlMode::Response::SharedPtr response;
 
     try {
-        // Create and initialize PX4 controller
-        auto controller = std::make_shared<PX4Controller>("px4_teleop_controller");
-        
-        if (!controller->initialize()) {
-            std::cerr << "Failed to initialize PX4 Controller" << std::endl;
-            util::TerminalController::cleanup();
-            rclcpp::shutdown();
-            return 1;
-        }
-        
-        std::cout << "Starting teleop control..." << std::endl;
-        
-        // Start ROS2 spinning in a separate thread
-        std::thread ros_thread([controller]() {
-            rclcpp::spin(controller);
-        });
-        
-        // Enter teleop mode immediately
-        teleopControlLoop(*controller);
-        
-        // Clean up
-        rclcpp::shutdown();
-        ros_thread.join();
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        util::TerminalController::cleanup();
-        rclcpp::shutdown();
-        return 1;
+        response = sync_send_request<flyscan_interfaces::srv::SetControlMode>(this->get_node_base_interface(), mode_client_, request, 20s, 20s);
+    } catch(const std::runtime_error &e) {
+        RCLCPP_ERROR(this->get_logger(), "Service call fail in %s: %s", this->get_name(), e.what());
+        cleanupTerminal();
+        return;
+    } catch(const std::exception &e) {
+        RCLCPP_ERROR(this->get_logger(), "Exception caught in %s: %s", this->get_name(), e.what());
+        cleanupTerminal();
+        return;
+    }
+
+    if (!response->success) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to switch to teleop mode: %s", response->message.c_str());
+        cleanupTerminal();
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Successfully switched to teleop mode");
+    teleop_active_ = true;
+    printInstructions();
+
+    input_timer_ = this->create_wall_timer(50ms, std::bind(&TeleopNode::inputLoop, this));
+    
+    // Initialize command message
+    current_command_.forward = 0.0f;
+    current_command_.right = 0.0f;
+    current_command_.up = 0.0f;
+    current_command_.yaw_rate = 0.0f;
+    current_command_.hold_position = false;
+    current_command_.exit_teleop = false;
+    current_command_.takeoff = false;
+    current_command_.land = false;
+}
+
+TeleopNode::~TeleopNode() {
+    if (teleop_active_) {
+        sendExitCommand();
+    }
+    cleanupTerminal();
+}
+
+void TeleopNode::inputLoop() {
+    if (!teleop_active_) return;
+    
+    if (kbhit()) {
+        char key = getch();
+        processInput(key);
+    }
+}
+
+void TeleopNode::processInput(char key) {
+    // Reset command
+    current_command_.forward = 0.0f;
+    current_command_.right = 0.0f;
+    current_command_.up = 0.0f;
+    current_command_.yaw_rate = 0.0f;
+    current_command_.hold_position = false;
+    current_command_.exit_teleop = false;
+    current_command_.takeoff = false;
+    current_command_.land = false;
+    
+    switch (key) {
+        case 'w':
+        case 'W':
+            current_command_.forward = 1.0f;
+            RCLCPP_INFO(this->get_logger(), "Moving forward");
+            break;
+        case 's':
+        case 'S':
+            current_command_.forward = -1.0f;
+            RCLCPP_INFO(this->get_logger(), "Moving backward");
+            break;
+        case 'a':
+        case 'A':
+            current_command_.right = -1.0f;
+            RCLCPP_INFO(this->get_logger(), "Moving left");
+            break;
+        case 'd':
+        case 'D':
+            current_command_.right = 1.0f;
+            RCLCPP_INFO(this->get_logger(), "Moving right");
+            break;
+        case 'q':
+        case 'Q':
+            current_command_.up = 1.0f;
+            RCLCPP_INFO(this->get_logger(), "Moving up");
+            break;
+        case 'e':
+        case 'E':
+            current_command_.up = -1.0f;
+            RCLCPP_INFO(this->get_logger(), "Moving down");
+            break;
+        case 'j':
+        case 'J':
+            current_command_.yaw_rate = -1.0f;
+            RCLCPP_INFO(this->get_logger(), "Yawing left");
+            break;
+        case 'l':
+        case 'L':
+            current_command_.yaw_rate = 1.0f;
+            RCLCPP_INFO(this->get_logger(), "Yawing right");
+            break;
+        case ' ':
+            current_command_.hold_position = true;
+            RCLCPP_INFO(this->get_logger(), "Holding position");
+            break;
+        case 't':
+        case 'T':
+            current_command_.takeoff = true;
+            RCLCPP_INFO(this->get_logger(), "Takeoff command - going to NED (0,0,-1.5)");
+            break;
+        case 'p':
+        case 'P':
+            current_command_.land = true;
+            RCLCPP_INFO(this->get_logger(), "Land command - going to NED (0,0,0)");
+            break;
+        case 27: // ESC key
+            RCLCPP_INFO(this->get_logger(), "Exiting teleop mode");
+            current_command_.exit_teleop = true;
+            sendExitCommand();
+            return;
+        default:
+            // Unknown key, don't send command
+            return;
     }
     
-    util::TerminalController::cleanup();
+    sendTeleopCommand();
+}
+
+void TeleopNode::sendTeleopCommand() {
+    teleop_pub_->publish(current_command_);
+}
+
+void TeleopNode::sendExitCommand() {
+    current_command_.exit_teleop = true;
+    teleop_pub_->publish(current_command_);
+    teleop_active_ = false;
+    
+    // Stop the input timer
+    if (input_timer_) {
+        input_timer_->cancel();
+    }
+}
+
+bool TeleopNode::initializeTerminal() {
+    if (tcgetattr(STDIN_FILENO, &original_termios_) == -1) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to get terminal attributes");
+        return false;
+    }
+    
+    struct termios new_termios = original_termios_;
+    new_termios.c_lflag &= ~(ICANON | ECHO);
+    new_termios.c_cc[VMIN] = 0;
+    new_termios.c_cc[VTIME] = 0;
+    
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &new_termios) == -1) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to set terminal attributes");
+        return false;
+    }
+    
+    if (fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK) == -1) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to set terminal to non-blocking mode");
+        return false;
+    }
+    
+    terminal_configured_ = true;
+    RCLCPP_INFO(this->get_logger(), "Terminal controller initialized");
+    return true;
+}
+
+void TeleopNode::cleanupTerminal() {
+    if (terminal_configured_) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &original_termios_);
+        terminal_configured_ = false;
+        RCLCPP_INFO(this->get_logger(), "Terminal controller cleaned up");
+    }
+}
+
+bool TeleopNode::kbhit() {
+    fd_set readfds;
+    struct timeval timeout;
+    
+    FD_ZERO(&readfds);
+    FD_SET(STDIN_FILENO, &readfds);
+    
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+    return select(STDIN_FILENO + 1, &readfds, nullptr, nullptr, &timeout) > 0;
+}
+
+char TeleopNode::getch() {
+    if (kbhit()) {
+        return getchar();
+    }
     return 0;
 }
+
+void TeleopNode::printInstructions() {
+    std::cout << "\n=== TELEOP CONTROL ACTIVE ===\n";
+    std::cout << "W/S: Move Forward/Backward\n";
+    std::cout << "A/D: Move Left/Right\n"; 
+    std::cout << "Q/E: Move Up/Down\n";
+    std::cout << "J/L: Yaw Left/Right\n";
+    std::cout << "SPACE: Hold current position\n";
+    std::cout << "T: Takeoff to NED (0,0,-1.5)\n";
+    std::cout << "P: Land to NED (0,0,0)\n";
+    std::cout << "ESC: Exit teleop mode\n";
+    std::cout << "=============================\n\n";
+}
+
+} // namespace drone_controller
+} // namespace flyscan

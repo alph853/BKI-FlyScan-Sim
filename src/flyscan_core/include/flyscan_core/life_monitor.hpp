@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 #include <shared_mutex>
+#include <rclcpp_components/register_node_macro.hpp>
 
 #include "flyscan_common/types.hpp"
 #include "flyscan_common/enums.hpp"
@@ -140,3 +141,5 @@ private:
 
 }  // namespace core
 }  // namespace flyscan
+
+RCLCPP_COMPONENTS_REGISTER_NODE(flyscan::core::LifeMonitor)

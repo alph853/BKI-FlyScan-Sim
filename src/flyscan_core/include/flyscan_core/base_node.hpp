@@ -22,39 +22,38 @@
 namespace flyscan {
 namespace core {
 
-using LifecycleNode = flyscan::common::core_types::LifecycleNode;
+using flyscan::common::core_types::LifecycleCallbackReturn;
+using flyscan::common::core_types::LifecycleState;
+using flyscan::common::core_types::LifecycleStateMsg;
+using flyscan::common::core_types::LifecycleTransition;
+using flyscan::common::core_types::NodeHeartbeatMsg;
+using flyscan::common::core_types::RegisterNodeSrv;
+using flyscan::common::core_types::UnregisterNodeSrv;
+using flyscan::common::core_types::RequestRecoverySrv;
 
-using LifecycleCallbackReturn   = flyscan::common::core_types::LifecycleCallbackReturn;
-using LifecycleState            = flyscan::common::core_types::LifecycleState;
-using LifecycleStateMsg         = flyscan::common::core_types::LifecycleStateMsg;
-using LifecycleTransition       = flyscan::common::core_types::LifecycleTransition;
-
-using NodeHeartbeatMsg          = flyscan::common::core_types::NodeHeartbeatMsg;
-
-using RegisterNodeSrv           = flyscan::common::core_types::RegisterNodeSrv;
-using UnregisterNodeSrv         = flyscan::common::core_types::UnregisterNodeSrv;
-using RequestRecoverySrv        = flyscan::common::core_types::RequestRecoverySrv;
-
-using OperationStatus = flyscan::common::OperationStatus;
-using NodeType        = flyscan::common::NodeType;
+using flyscan::common::OperationStatus;
+using flyscan::common::NodeType;
 
 /**
  * @brief Base class for autonomous UAV nodes with lifecycle and bond-based monitoring
  * @note This node requires execution in a MultiThreadedExecutor for blocking service calls
  * like RegisterWithLifeMonitor(). Single-threaded execution may deadlock or hang.
  */
-class BaseNode : public LifecycleNode
+class BaseNode : public rclcpp_lifecycle::LifecycleNode
 {
 public:
     /**
      * @brief Constructor for BaseNode
+     * @param options ROS2 node options
      * @param node_name Name of the node
      * @param node_type Type of the node
      * @param capabilities List of node capabilities
      */
-    BaseNode(const std::string& node_name, 
-             const NodeType& node_type,
-             const std::vector<std::string>& capabilities);
+    BaseNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions(),
+             const std::string& node_name = "base_node",
+             const NodeType& node_type = NodeType::kBaseNode,
+             const std::vector<std::string>& capabilities = {"base_node"}
+             );
 
     /**
      * @brief Destructor
@@ -165,6 +164,11 @@ private:
      * @return OperationStatus indicating success or failure
      */
     OperationStatus UnregisterFromLifeMonitor();
+
+    /**
+     * @brief Setup heartbeat publishing after successful registration
+     */
+    void SetupHeartbeatPublishing();
 
     /**
      * @brief Handle recovery request from LifeMonitor

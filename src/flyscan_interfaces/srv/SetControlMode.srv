@@ -1,0 +1,18 @@
+# SetControlMode.srv
+# Service for switching drone control modes
+
+#--- Request ---
+uint8 mode
+# Mode values:
+# 0 = MANUAL       - Manual control, no automation
+# 1 = TELEOP       - Teleoperation with keyboard control
+# 2 = AUTONOMOUS   - Autonomous navigation and control
+# 3 = MISSION      - Mission execution mode
+# 4 = RTL          - Return to launch
+# 5 = LAND         - Landing mode
+
+---
+#--- Response ---
+bool   success
+string message    # Status message
+uint8  previous_mode  # Previous mode before switching 

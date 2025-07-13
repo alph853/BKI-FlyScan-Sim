@@ -41,6 +41,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ExplorationMap.msg"
   "msg/Hypermap.msg"
   "msg/Odometry.msg"
+  "msg/TeleopCommand.msg"
 
   "srv/GetRegisteredNodes.srv"
   "srv/RegisterNode.srv"
@@ -48,6 +49,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/RequestRecovery.srv"
 
   "srv/QueryMap.srv"
+  "srv/SetControlMode.srv"
 
   DEPENDENCIES std_msgs geometry_msgs nav_msgs sensor_msgs builtin_interfaces
 )

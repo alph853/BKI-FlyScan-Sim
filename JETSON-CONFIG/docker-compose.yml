@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  wifi-config:
+    build: ./backend
+    container_name: jetson-wifi-config
+    network_mode: host
+    privileged: true
+    volumes:
+      - /etc/NetworkManager:/etc/NetworkManager
+      - /var/run/dbus:/var/run/dbus
+      - ./scripts:/scripts
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    command: ["sh", "-c", "/scripts/init.sh && python main.py"]

@@ -2,14 +2,101 @@
 
 ## Overview
 
-The FLyScan Drone Controller is a comprehensive PX4 autopilot control system built using MAVSDK C++. This package provides complete control over PX4-based drones, including teleoperation, autonomous flights, mission execution, and advanced sensor integration for scanning applications.
+The FLyScan Drone Controller is a **centralized PX4 autopilot control system** with integrated mode management and lifecycle state handling. This package provides a unified interface for controlling PX4-based drones across multiple operation modes including manual control, teleoperation, and autonomous flight.
+
+## Key Features
+
+- **Centralized Architecture**: Single `PX4Controller` node handles all flight operations
+- **Mode Management**: Service-based switching between operational modes (Manual, Teleop, Autonomous, Mission, RTL, Land)
+- **Lifecycle Management**: Full ROS2 lifecycle node implementation with proper state transitions
+- **Integrated Teleoperation**: Built-in interactive keyboard control when in teleop mode
+- **High Performance**: Thread-safe design optimized for real-time operation
+- **Scalable Design**: Easy extension for additional autonomous modes
+- **Comprehensive Documentation**: Full doxygen documentation throughout
 
 ## Architecture
 
-The controller consists of two main components:
+### Centralized PX4Controller Node
 
-1. **PX4Controller** (`px4_controller.hpp/cpp`) - Core MAVSDK integration and flight control
-2. **ControllerNode** (`controller_node.cpp`) - ROS 2 wrapper for external system integration
+The `PX4Controller` is the main node that:
+- **Inherits from `BaseNode`**: Provides lifecycle management and monitoring
+- **Manages Multiple Modes**: Seamlessly switches between different operational modes
+- **Handles PX4 Communication**: Publishes commands and subscribes to telemetry
+- **Provides Service Interface**: External control via ROS2 services
+- **Integrates Teleop**: Interactive keyboard control when in teleop mode
+
+### Control Modes
+
+| Mode | ID | Description | Status |
+|------|----|--------------| -------|
+| **MANUAL** | 0 | Manual control, no automation | ✅ Implemented |
+| **TELEOP** | 1 | Interactive keyboard teleoperation | ✅ Implemented |
+| **AUTONOMOUS** | 2 | Autonomous navigation and control | 🚧 Future |
+| **MISSION** | 3 | Mission execution mode | 🚧 Future |
+| **RTL** | 4 | Return to launch | 🚧 Future |
+| **LAND** | 5 | Landing mode | 🚧 Future |
+
+## Quick Start
+
+### 1. Build the Package
+
+```bash
+cd flyscan_ws
+colcon build --packages-select flyscan_interfaces flyscan_drone_controller
+source install/setup.bash
+```
+
+### 2. Start the Controller
+
+```bash
+ros2 run flyscan_drone_controller px4_controller
+```
+
+The controller starts in **MANUAL** mode and displays:
+```
+[INFO] PX4Controller is active and ready for mode switching
+[INFO] Use: ros2 service call /px4_controller/set_control_mode flyscan_interfaces/srv/SetControlMode "{mode: 1}"
+[INFO] Mode 0=MANUAL, 1=TELEOP, 2=AUTONOMOUS, 3=MISSION, 4=RTL, 5=LAND
+```
+
+### 3. Switch to Teleop Mode
+
+In a **separate terminal**:
+```bash
+ros2 service call /px4_controller/set_control_mode flyscan_interfaces/srv/SetControlMode "{mode: 1}"
+```
+
+The **original terminal** becomes interactive for keyboard control:
+
+```
+=== POSITION-BASED TELEOP CONTROL ===
+W/S: Move Forward/Backward (0.5m steps)
+A/D: Move Left/Right (0.5m steps)
+Q/E: Move Up/Down (0.5m steps)
+J/L: Yaw Left/Right (10° steps)
+SPACE: Hold current position
+ESC: Exit teleop mode
+======================================
+
+Ready for teleop commands. Press 'T' to takeoff, 'P' to land, ESC to exit teleop mode
+```
+
+### 4. Teleop Control
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| `T` | Takeoff | Arms vehicle and takes off to 1.5m altitude |
+| `W` | Forward | Move forward 0.5m |
+| `S` | Backward | Move backward 0.5m |
+| `A` | Left | Move left 0.5m |
+| `D` | Right | Move right 0.5m |
+| `Q` | Up | Move up 0.5m |
+| `E` | Down | Move down 0.5m |
+| `J` | Yaw Left | Rotate left 10° |
+| `L` | Yaw Right | Rotate right 10° |
+| `P` | Land | Initiate landing sequence |
+| `SPACE` | Hold | Hold current position |
+| `ESC` | Exit | Exit teleop mode (returns to MANUAL) |
 
 ## Core Components
 

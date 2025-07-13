@@ -8,10 +8,17 @@
   <license>MIT</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+
+  <depend>flyscan_core</depend>
+  <depend>flyscan_common</depend>
+  <depend>flyscan_interfaces</depend>
+  <depend>px4_msgs</depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
   <export>
