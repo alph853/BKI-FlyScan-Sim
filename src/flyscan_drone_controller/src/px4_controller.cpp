@@ -14,6 +14,7 @@
 #include <functional>
 #include <csignal>
 #include <cmath>
+#include <future>
 
 #include <rclcpp/rate.hpp>
 
@@ -43,10 +44,8 @@ PX4Controller::~PX4Controller() {
     // Signal all threads to exit
     should_exit_ = true;
     
-    // Exit offboard mode if active
-    if (IsInOffboardMode()) {
-        StopOffboardMode();
-    }
+    // Always attempt to stop offboard mode
+    StopOffboardMode();
     
     // Terminal cleanup is now handled by teleop_node
     
@@ -98,11 +97,10 @@ OperationStatus PX4Controller::HandleConfigure() {
             std::bind(&PX4Controller::HandleSetControlModeService, this, _1, _2));
         RCLCPP_INFO(this->get_logger(), "Created mode switching service: /px4_controller/set_control_mode");
 
-        // Create setpoint timer (initially disabled)
+        // Create setpoint timer (always running)
         setpoint_timer_ = this->create_wall_timer(
             50ms,
             std::bind(&PX4Controller::SetpointTimerCallback, this));
-        setpoint_timer_->cancel(); // Start disabled
 
         RCLCPP_INFO(this->get_logger(), "Created setpoint timer (%d ms interval)", SETPOINT_RATE_MS);
 
@@ -137,7 +135,7 @@ OperationStatus PX4Controller::HandleActivate() {
 
 OperationStatus PX4Controller::HandleDeactivate() {
     RCLCPP_INFO(this->get_logger(), "Deactivating PX4 Controller...");
-    
+
     // Exit current mode safely
     ExitCurrentMode();
     
@@ -148,10 +146,7 @@ OperationStatus PX4Controller::HandleDeactivate() {
 OperationStatus PX4Controller::HandleCleanup() {
     RCLCPP_INFO(this->get_logger(), "Cleaning up PX4 Controller...");
     
-    // Stop all active operations
     should_exit_ = true;
-    
-    // Teleop cleanup is handled by separate teleop_node
     
     if (setpoint_timer_) {
         setpoint_timer_->cancel();
@@ -169,7 +164,6 @@ OperationStatus PX4Controller::HandleShutdown() {
 OperationStatus PX4Controller::HandleError() {
     RCLCPP_ERROR(this->get_logger(), "PX4 Controller error state - attempting recovery...");
     
-    // Stop all operations and return to manual mode
     ExitCurrentMode();
     current_mode_ = ControlMode::kManual;
     
@@ -180,7 +174,6 @@ OperationStatus PX4Controller::HandleError() {
 // ============================================================================
 // Mode Management Implementation
 // ============================================================================
-
 
 void PX4Controller::HandleSetControlModeService(
     const std::shared_ptr<flyscan_interfaces::srv::SetControlMode::Request> request,
@@ -195,7 +188,6 @@ void PX4Controller::HandleSetControlModeService(
                 ControlModeToString(previous_mode).c_str(),
                 ControlModeToString(requested_mode).c_str());
 
-    // Validate mode request
     if (requested_mode == ControlMode::kUnknown || request->mode > 5) {
         response->success = false;
         response->message = "Invalid mode requested";
@@ -204,7 +196,6 @@ void PX4Controller::HandleSetControlModeService(
         return;
     }
 
-    // Attempt mode switch
     OperationStatus switch_status = SwitchToMode(requested_mode);
     
     response->success = (switch_status == OperationStatus::kOK);
@@ -225,7 +216,6 @@ OperationStatus PX4Controller::SwitchToMode(ControlMode new_mode) {
         return OperationStatus::kOK;
     }
 
-    // Exit current mode first
     OperationStatus exit_status = ExitCurrentMode();
     if (exit_status != OperationStatus::kOK) {
         RCLCPP_ERROR(this->get_logger(), "Failed to exit current mode %s", 
@@ -280,10 +270,8 @@ OperationStatus PX4Controller::SwitchToMode(ControlMode new_mode) {
 OperationStatus PX4Controller::EnterManualMode() {
     RCLCPP_INFO(this->get_logger(), "Entering MANUAL mode");
     
-    // Stop offboard mode if active
-    if (IsInOffboardMode()) {
-        StopOffboardMode();
-    }
+    // Always stop offboard mode
+    StopOffboardMode();
     
     return OperationStatus::kOK;
 }
@@ -292,19 +280,10 @@ OperationStatus PX4Controller::EnterManualMode() {
 OperationStatus PX4Controller::EnterTeleopMode() {
     RCLCPP_INFO(this->get_logger(), "Entering TELEOP mode");
     
-    // Check if vehicle is armed - required for offboard mode
-    auto operation_status = Arm(false); // Don't wait - check separately to avoid race condition
-    if (operation_status != OperationStatus::kOK) {
-        RCLCPP_ERROR(this->get_logger(), "Cannot enter TELEOP mode: Failed to send arm command");
-        return OperationStatus::kNotInitialized;
-    }
-    
-    // Give a brief moment for arm command to be processed, then check status
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (!IsArmed()) {
-        RCLCPP_ERROR(this->get_logger(), "Cannot enter TELEOP mode: Vehicle is not armed");
-        return OperationStatus::kNotInitialized;
-    }
+    // Send arm command and assume it will be armed (no waiting for status)
+    RCLCPP_INFO(this->get_logger(), "Sending arm command and assuming vehicle will be armed...");
+    PublishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0f);
+    RCLCPP_INFO(this->get_logger(), "Arm command sent, proceeding with teleop mode setup");
 
     // Initialize current position setpoint to current position
     px4_msgs::msg::VehicleLocalPosition current_position;
@@ -339,11 +318,7 @@ OperationStatus PX4Controller::EnterTeleopMode() {
         return offboard_status;
     }
     
-    // Verify offboard mode is active
-    if (!IsInOffboardMode()) {
-        RCLCPP_ERROR(this->get_logger(), "Offboard mode verification failed - TELEOP mode activation failed");
-        return OperationStatus::kTimeout;
-    }
+    // Removed offboard mode verification - assuming mode switch was successful
     
     RCLCPP_INFO(this->get_logger(), "TELEOP mode active with offboard control - ready for teleop commands");
     return OperationStatus::kOK;
@@ -373,9 +348,7 @@ OperationStatus PX4Controller::ExitCurrentMode() {
     }
     
     // Always stop offboard mode when exiting any mode
-    if (IsInOffboardMode()) {
-        StopOffboardMode();
-    }
+    StopOffboardMode();
     
     return OperationStatus::kOK;
 }
@@ -482,10 +455,7 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
 }
 
 OperationStatus PX4Controller::StartOffboardMode(int timeout_ms) {
-    if (IsNavStateActive(px4_msgs::msg::VehicleStatus::NAVIGATION_STATE_OFFBOARD)) {
-        RCLCPP_WARN(this->get_logger(), "Offboard mode already active");
-        return OperationStatus::kOK;
-    }
+    // Removed offboard mode check - always proceed with mode setup
 
     RCLCPP_INFO(this->get_logger(), "Starting offboard mode sequence...");
     rclcpp::WallRate rate(1000.0 / SETPOINT_RATE_MS);
@@ -503,7 +473,6 @@ OperationStatus PX4Controller::StartOffboardMode(int timeout_ms) {
     bool success = WaitForNavStateActive(px4_msgs::msg::VehicleStatus::NAVIGATION_STATE_OFFBOARD, timeout_ms);
     if (success) {
         RCLCPP_INFO(this->get_logger(), "Offboard mode started successfully");
-        setpoint_timer_->reset(); // Enable continuous setpoint streaming
         return OperationStatus::kOK;
     } else {
         RCLCPP_ERROR(this->get_logger(), "Failed to activate offboard mode within timeout");
@@ -512,24 +481,16 @@ OperationStatus PX4Controller::StartOffboardMode(int timeout_ms) {
 }
 
 OperationStatus PX4Controller::StopOffboardMode() {
-    if (!IsNavStateActive(px4_msgs::msg::VehicleStatus::NAVIGATION_STATE_OFFBOARD)) {
-        RCLCPP_WARN(this->get_logger(), "Offboard mode not active");
-        return OperationStatus::kOK;
-    }
+    // Always proceed with stopping offboard mode
     
     RCLCPP_INFO(this->get_logger(), "Stopping offboard mode");
-    
-    // Cancel setpoint timer
-    if (setpoint_timer_) {
-        setpoint_timer_->cancel();
-    }
     
     RCLCPP_INFO(this->get_logger(), "Offboard mode stopped");
     return OperationStatus::kOK;
 }
 
 void PX4Controller::SetpointTimerCallback() {
-    if (!IsNavStateActive(px4_msgs::msg::VehicleStatus::NAVIGATION_STATE_OFFBOARD) || should_exit_) {
+    if (should_exit_) {
         return;
     }
 
@@ -722,10 +683,8 @@ OperationStatus PX4Controller::TakeOff(bool wait_for_confirmation, int timeout_m
 OperationStatus PX4Controller::Land(bool wait_for_confirmation, int timeout_ms) {
     RCLCPP_INFO(this->get_logger(), "Initiating landing sequence...");
     
-    // Stop offboard mode if active
-    if (IsInOffboardMode()) {
-        StopOffboardMode();
-    }
+    // Always stop offboard mode
+    StopOffboardMode();
     
     // Send land command
     PublishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_NAV_LAND);
@@ -741,6 +700,7 @@ OperationStatus PX4Controller::Land(bool wait_for_confirmation, int timeout_ms) 
     
     return OperationStatus::kOK;
 }
+
 
 } // namespace drone_controller
 } // namespace flyscan

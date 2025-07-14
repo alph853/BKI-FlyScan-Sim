@@ -90,6 +90,7 @@ public:
      */
     OperationStatus Arm(bool wait_for_confirmation = true, int timeout_ms = 10000);
 
+
     /**
      * @brief Takeoff to default position and enter offboard mode
      * @param wait_for_confirmation If true, wait for takeoff confirmation  
@@ -324,6 +325,7 @@ private:
     mutable bool target_armed_state_{false};
     mutable bool target_inair_state_{false};
     mutable uint8_t target_nav_state_{0};
+    
     
     // ============================================================================
     // State Management

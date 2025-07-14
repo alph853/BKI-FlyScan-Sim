@@ -42,6 +42,12 @@ def generate_launch_description():
         description='Use intra-process communications for better performance'
     )
     
+    use_multithreaded_executor_arg = DeclareLaunchArgument(
+        'use_multithreaded_executor',
+        default_value='true',
+        description='Use multithreaded executor (component_container_mt) for better callback processing'
+    )
+    
     def launch_setup(context, *args, **kwargs):
         """Setup the launch based on context."""
         
@@ -50,6 +56,7 @@ def generate_launch_description():
         container_name = LaunchConfiguration('container_name')
         namespace = LaunchConfiguration('namespace')
         use_intra_process_comms = LaunchConfiguration('use_intra_process_comms')
+        use_multithreaded_executor = LaunchConfiguration('use_multithreaded_executor')
         
         # Define the PX4Controller composable node
         px4_controller_node = ComposableNode(
@@ -78,13 +85,15 @@ def generate_launch_description():
                 # Add any parameters here if needed
             ]
         )
-        
-        # Create the composable container
+
+        use_mt = context.perform_substitution(use_multithreaded_executor).lower() == 'true'
+        container_executable = 'component_container_mt' if use_mt else 'component_container'
+
         container = ComposableNodeContainer(
             name=container_name,
             namespace=namespace,
             package='rclcpp_components',
-            executable='component_container',
+            executable=container_executable,
             composable_node_descriptions=[
                 px4_controller_node,
                 life_monitor_node
@@ -112,6 +121,7 @@ def generate_launch_description():
         container_name_arg,
         namespace_arg,
         use_intra_process_comms_arg,
+        use_multithreaded_executor_arg,
         OpaqueFunction(function=launch_setup),
         TimerAction(period=1.0, actions=[configure_px4_controller]),
         TimerAction(period=2.0, actions=[activate_px4_controller])

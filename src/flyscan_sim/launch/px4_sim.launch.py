@@ -7,20 +7,15 @@ from ament_index_python.packages import get_package_share_directory
 
 import os
 
-QGC_PATH = 'qgroundcontrol'
-PX4_DIR = '/home/ttd/Documents/flyscan_ws/PX4-Autopilot'
+QGC_PATH = '~/Applications/QGroundControl-x86_64.AppImage'
+PX4_DIR = '/home/ttd/Projects/ros2/px4_ws/PX4-Autopilot'
 GZ_WORLD = 'warehouse_outdoor'
-
 
 def generate_launch_description():
     sim_pkg = get_package_share_directory('flyscan_sim')
 
     gz_world = os.path.join(sim_pkg, 'worlds', f'{GZ_WORLD}.sdf')
     target_world = os.path.join(PX4_DIR, 'Tools', 'simulation', 'gz', 'worlds', f'{GZ_WORLD}.sdf')
-    
-    
-    print(f'gz_world: {gz_world}')
-    print(f'target_world: {target_world}')
     
     symlink_world = ExecuteProcess(
         cmd=['bash', '-c', f'ln -sf {gz_world} {target_world}'],
@@ -38,8 +33,8 @@ def generate_launch_description():
         cmd=['bash', '-c', qgc_cmd],
         output='screen'
     )
-    
-    micro_XRCE_bridge_cmd = f'MicroXRCEAgent udp4 -p 8888'
+
+    micro_XRCE_bridge_cmd = 'MicroXRCEAgent udp4 -p 8888'
     micro_XRCE_bridge = ExecuteProcess(
         cmd=['bash', '-c', micro_XRCE_bridge_cmd],
         output='screen'
@@ -91,7 +86,7 @@ def generate_launch_description():
         use_sim_time_arg,
         symlink_world,
         micro_XRCE_bridge,
-        qgc,
+        # qgc,
         px4_sitl,
         TimerAction(period=5.0, actions=(gz_bridge_node,)),
     ])
