@@ -27,6 +27,8 @@ private:
     bool kbhit();
     char getch();
     void printInstructions();
+    void startEightShapePattern();
+    void executeEightShapeStep();
 
     // ROS2 interfaces
     rclcpp::Client<flyscan_interfaces::srv::SetControlMode>::SharedPtr mode_client_;
@@ -41,9 +43,17 @@ private:
     flyscan_interfaces::msg::TeleopCommand current_command_;
     bool teleop_active_;
     
+    // 8-shape pattern state
+    rclcpp::TimerBase::SharedPtr eight_shape_timer_;
+    bool executing_eight_shape_;
+    int eight_shape_step_;
+    std::chrono::steady_clock::time_point eight_shape_start_;
+    
     // Movement parameters
     static constexpr float MOVE_STEP = 0.5f;  // meters
     static constexpr float YAW_STEP = 10.0f;  // degrees
+    static constexpr float EIGHT_SHAPE_RADIUS = 2.0f;  // meters
+    static constexpr float EIGHT_SHAPE_SPEED = 0.3f;   // m/s
 };
 
 } // namespace drone_controller

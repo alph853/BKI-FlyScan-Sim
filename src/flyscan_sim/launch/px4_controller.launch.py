@@ -10,13 +10,23 @@ as a composable node within that container for improved performance.
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, ExecuteProcess, TimerAction
 from launch.substitutions import LaunchConfiguration, TextSubstitution
-from launch_ros.actions import ComposableNodeContainer
+from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.descriptions import ComposableNode
 
 
 def generate_launch_description():
     """Generate launch description for PX4Controller composable container."""
-    
+
+    # Declare launch arguments
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation (Gazebo) clock if true'
+    )
+
+    # Launch configuration variables
+    use_sim_time = LaunchConfiguration('use_sim_time')
+
     # Launch arguments
     node_name_arg = DeclareLaunchArgument(
         'node_name',
@@ -35,7 +45,7 @@ def generate_launch_description():
         default_value='',
         description='Namespace for the nodes'
     )
-    
+
     use_intra_process_comms_arg = DeclareLaunchArgument(
         'use_intra_process_comms',
         default_value='true',
@@ -47,11 +57,10 @@ def generate_launch_description():
         default_value='true',
         description='Use multithreaded executor (component_container_mt) for better callback processing'
     )
-    
+
     def launch_setup(context, *args, **kwargs):
         """Setup the launch based on context."""
         
-        # Get launch configuration values
         node_name = LaunchConfiguration('node_name')
         container_name = LaunchConfiguration('container_name')
         namespace = LaunchConfiguration('namespace')
@@ -105,7 +114,7 @@ def generate_launch_description():
         )
         
         return [container]
-    
+
     configure_px4_controller = ExecuteProcess(
         cmd=['ros2', 'lifecycle', 'set', '/px4_controller', 'configure'],
         output='screen'
@@ -120,9 +129,10 @@ def generate_launch_description():
         node_name_arg,
         container_name_arg,
         namespace_arg,
+        use_sim_time_arg,
         use_intra_process_comms_arg,
         use_multithreaded_executor_arg,
         OpaqueFunction(function=launch_setup),
         TimerAction(period=1.0, actions=[configure_px4_controller]),
-        TimerAction(period=2.0, actions=[activate_px4_controller])
+        TimerAction(period=2.0, actions=[activate_px4_controller]),
     ])

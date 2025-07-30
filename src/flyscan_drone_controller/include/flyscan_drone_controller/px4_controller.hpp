@@ -34,7 +34,6 @@
 
 #include "flyscan_core/base_node.hpp"
 #include "flyscan_common/enums.hpp"
-#include "flyscan_drone_controller/util.hpp"
 
 namespace flyscan {
 namespace drone_controller {
@@ -121,47 +120,6 @@ public:
      */
     OperationStatus StopOffboardMode();
 
-    
-    // ============================================================================
-    // Vehicle Status Query Interface
-    // ============================================================================
-
-    /**
-     * @brief Check if vehicle is armed
-     * @return True if armed, false otherwise
-     */
-    bool IsArmed() const;
-    
-    /**
-     * @brief Check if vehicle is in air
-     * @return True if in air, false if landed
-     */
-    bool IsInAir() const;
-    
-    /**
-     * @brief Check if vehicle is in offboard mode
-     * @return True if in offboard mode, false otherwise
-     */
-    bool IsInOffboardMode() const;
-    
-    /**
-     * @brief Get current vehicle position (thread-safe)
-     * @return Current vehicle local position
-     */
-    px4_msgs::msg::VehicleLocalPosition GetCurrentPosition() const;
-    
-    /**
-     * @brief Get current vehicle status (thread-safe)
-     * @return Current vehicle status
-     */
-    px4_msgs::msg::VehicleStatus GetCurrentStatus() const;
-
-    /**
-     * @brief Get current control mode
-     * @return Current control mode
-     */
-    ControlMode GetCurrentMode() const { return current_mode_; }
-
 protected:
     // ============================================================================
     // Lifecycle Management (BaseNode overrides)
@@ -178,38 +136,7 @@ private:
     // ============================================================================
     // Core PX4 Communication Methods
     // ============================================================================
-    
-    /**
-     * @brief Check if vehicle is in specified navigation state
-     * @param nav_state Navigation state to check
-     * @return True if in specified state
-     */
-    bool IsNavStateActive(uint8_t nav_state) const;
 
-    /**
-     * @brief Wait for vehicle to reach specified navigation state
-     * @param nav_state Target navigation state
-     * @param timeout_ms Timeout in milliseconds
-     * @return True if state reached within timeout
-     */
-    bool WaitForNavStateActive(uint8_t nav_state, int timeout_ms = 5000) const;
-
-    /**
-     * @brief Wait for vehicle to reach armed state
-     * @param armed Target armed state (true for armed, false for disarmed)
-     * @param timeout_ms Timeout in milliseconds
-     * @return True if state reached within timeout
-     */
-    bool WaitForArmedState(bool armed, int timeout_ms = 5000) const;
-
-    /**
-     * @brief Wait for vehicle to reach specified air/land state
-     * @param in_air Target air state (true for in air, false for landed)
-     * @param timeout_ms Timeout in milliseconds
-     * @return True if state reached within timeout
-     */
-    bool WaitForAirState(bool in_air, int timeout_ms = 5000) const;
-    
     /**
      * @brief Callback for vehicle local position updates
      * @param msg Vehicle local position message

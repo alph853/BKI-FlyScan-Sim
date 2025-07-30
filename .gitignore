@@ -40,6 +40,7 @@ s
 
 # === Custom files ===
 .cache/
+.venv/
 
 build_system.sh
 template/

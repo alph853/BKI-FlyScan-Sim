@@ -1,8 +1,10 @@
 #include <iostream>
 #include <chrono>
+#include <signal.h>
 
-#include "flyscan_common/util.hpp"
+#include "flyscan_common/request_util.hpp"
 #include "flyscan_drone_controller/teleop_node.hpp"
+#include "flyscan_drone_controller/constants.hpp"
 
 using namespace std::chrono_literals;
 using flyscan::common::sync_send_request;
@@ -14,8 +16,11 @@ TeleopNode::TeleopNode()
     : Node("teleop_node"), terminal_configured_(false), teleop_active_(false) {
     
     // Initialize ROS2 interfaces
-    mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>("/px4_controller/set_control_mode");
-    teleop_pub_ = this->create_publisher<flyscan_interfaces::msg::TeleopCommand>("/px4_controller/teleop_command", 10);
+    namespace srv = flyscan::drone_controller::constants::srv;
+    namespace topic = flyscan::drone_controller::constants::topic;
+    
+    mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>(srv::SET_CONTROL_MODE);
+    teleop_pub_ = this->create_publisher<flyscan_interfaces::msg::TeleopCommand>(topic::TELEOP_COMMAND, 10);
 
     // Initialize terminal for keyboard input
     if (!initializeTerminal()) {
@@ -61,12 +66,24 @@ TeleopNode::TeleopNode()
     current_command_.exit_teleop = false;
     current_command_.takeoff = false;
     current_command_.land = false;
+    
+    // Initialize 8-shape pattern state
+    executing_eight_shape_ = false;
+    eight_shape_step_ = 0;
 }
 
 TeleopNode::~TeleopNode() {
     if (teleop_active_) {
         sendExitCommand();
     }
+    
+    // Clean up 8-shape timer if running
+    if (eight_shape_timer_) {
+        eight_shape_timer_->cancel();
+        eight_shape_timer_.reset();
+    }
+    executing_eight_shape_ = false;
+    
     cleanupTerminal();
 }
 
@@ -75,7 +92,10 @@ void TeleopNode::inputLoop() {
     
     if (kbhit()) {
         char key = getch();
-        processInput(key);
+        // Only process input if not executing 8-shape pattern (except ESC key)
+        if (!executing_eight_shape_ || key == 27) {
+            processInput(key);
+        }
     }
 }
 
@@ -93,60 +113,68 @@ void TeleopNode::processInput(char key) {
     switch (key) {
         case 'w':
         case 'W':
+            RCLCPP_INFO(this->get_logger(), "W: Forward");
             current_command_.forward = 1.0f;
-            RCLCPP_INFO(this->get_logger(), "Moving forward");
             break;
         case 's':
         case 'S':
+            RCLCPP_INFO(this->get_logger(), "S: Backward");
             current_command_.forward = -1.0f;
-            RCLCPP_INFO(this->get_logger(), "Moving backward");
             break;
         case 'a':
         case 'A':
+            RCLCPP_INFO(this->get_logger(), "A: Left");
             current_command_.right = -1.0f;
-            RCLCPP_INFO(this->get_logger(), "Moving left");
             break;
         case 'd':
         case 'D':
+            RCLCPP_INFO(this->get_logger(), "D: Right");
             current_command_.right = 1.0f;
-            RCLCPP_INFO(this->get_logger(), "Moving right");
             break;
         case 'q':
         case 'Q':
+            RCLCPP_INFO(this->get_logger(), "Q: Up");
             current_command_.up = 1.0f;
-            RCLCPP_INFO(this->get_logger(), "Moving up");
             break;
         case 'e':
         case 'E':
+            RCLCPP_INFO(this->get_logger(), "E: Down");
             current_command_.up = -1.0f;
-            RCLCPP_INFO(this->get_logger(), "Moving down");
             break;
         case 'j':
         case 'J':
+            RCLCPP_INFO(this->get_logger(), "J: Yaw left");
             current_command_.yaw_rate = -1.0f;
-            RCLCPP_INFO(this->get_logger(), "Yawing left");
             break;
         case 'l':
         case 'L':
+            RCLCPP_INFO(this->get_logger(), "L: Yaw right");
             current_command_.yaw_rate = 1.0f;
-            RCLCPP_INFO(this->get_logger(), "Yawing right");
             break;
         case ' ':
+            RCLCPP_INFO(this->get_logger(), "SPACE: Hold position");
             current_command_.hold_position = true;
-            RCLCPP_INFO(this->get_logger(), "Holding position");
             break;
         case 't':
         case 'T':
+            RCLCPP_INFO(this->get_logger(), "T: Takeoff");
             current_command_.takeoff = true;
-            RCLCPP_INFO(this->get_logger(), "Takeoff command - going to NED (0,0,-1.5)");
             break;
         case 'p':
         case 'P':
+            RCLCPP_INFO(this->get_logger(), "P: Land");
             current_command_.land = true;
-            RCLCPP_INFO(this->get_logger(), "Land command - going to NED (0,0,0)");
             break;
+        case '8':
+            if (!executing_eight_shape_) {
+                RCLCPP_INFO(this->get_logger(), "8: Starting 8-shape pattern");
+                startEightShapePattern();
+            } else {
+                RCLCPP_INFO(this->get_logger(), "8-shape pattern already executing");
+            }
+            return;
         case 27: // ESC key
-            RCLCPP_INFO(this->get_logger(), "Exiting teleop mode");
+            RCLCPP_INFO(this->get_logger(), "ESC: Exit teleop mode");
             current_command_.exit_teleop = true;
             sendExitCommand();
             return;
@@ -236,9 +264,119 @@ void TeleopNode::printInstructions() {
     std::cout << "SPACE: Hold current position\n";
     std::cout << "T: Takeoff to NED (0,0,-1.5)\n";
     std::cout << "P: Land to NED (0,0,0)\n";
+    std::cout << "8: Fly in 8-shape pattern\n";
     std::cout << "ESC: Exit teleop mode\n";
     std::cout << "=============================\n\n";
 }
 
+void TeleopNode::startEightShapePattern() {
+    if (executing_eight_shape_) {
+        return;
+    }
+    
+    executing_eight_shape_ = true;
+    eight_shape_step_ = 0;
+    eight_shape_start_ = std::chrono::steady_clock::now();
+    
+    // Create timer for 8-shape execution (20Hz update rate)
+    eight_shape_timer_ = this->create_wall_timer(
+        50ms, 
+        std::bind(&TeleopNode::executeEightShapeStep, this)
+    );
+    
+    RCLCPP_INFO(this->get_logger(), "8-shape pattern started");
+}
+
+void TeleopNode::executeEightShapeStep() {
+    if (!executing_eight_shape_) {
+        return;
+    }
+    
+    // Calculate time elapsed since start
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - eight_shape_start_).count();
+    
+    // 8-shape pattern duration: 20 seconds for slow movement
+    const double total_duration = 20000.0; // 20 seconds in milliseconds
+    double t = static_cast<double>(elapsed) / total_duration;
+    
+    if (t >= 1.0) {
+        // Pattern complete, return to original position and stop
+        current_command_.forward = 0.0f;
+        current_command_.right = 0.0f;
+        current_command_.up = 0.0f;
+        current_command_.yaw_rate = 0.0f;
+        current_command_.hold_position = true;
+        current_command_.exit_teleop = false;
+        current_command_.takeoff = false;
+        current_command_.land = false;
+        
+        sendTeleopCommand();
+        
+        // Clean up timer and reset state
+        if (eight_shape_timer_) {
+            eight_shape_timer_->cancel();
+            eight_shape_timer_.reset();
+        }
+        executing_eight_shape_ = false;
+        
+        RCLCPP_INFO(this->get_logger(), "8-shape pattern completed. You can now use manual controls.");
+        return;
+    }
+    
+    // Calculate 8-shape trajectory
+    // Using parametric equations for figure-8: x = sin(2πt), y = sin(4πt)/2
+    const double pi = 3.14159265359;
+    const double angle1 = 2.0 * pi * t;      // Main frequency
+    const double angle2 = 4.0 * pi * t;      // Double frequency for figure-8
+    
+    // Calculate velocities (derivatives of position)
+    namespace config = flyscan::drone_controller::constants::config;
+    double vel_forward = config::EIGHT_SHAPE_SPEED * 2.0 * pi * cos(angle1);
+    double vel_right = config::EIGHT_SHAPE_SPEED * 2.0 * pi * cos(angle2);
+    
+    // Normalize velocities to [-1, 1] range for teleop command
+    const double max_vel = config::EIGHT_SHAPE_SPEED * 2.0 * pi;
+    current_command_.forward = static_cast<float>(vel_forward / max_vel);
+    current_command_.right = static_cast<float>(vel_right / max_vel);
+    current_command_.up = 0.0f;
+    current_command_.yaw_rate = 0.0f;
+    current_command_.hold_position = false;
+    current_command_.exit_teleop = false;
+    current_command_.takeoff = false;
+    current_command_.land = false;
+    
+    sendTeleopCommand();
+}
+
 } // namespace drone_controller
 } // namespace flyscan
+
+
+std::shared_ptr<flyscan::drone_controller::TeleopNode> teleop_node = nullptr;
+
+void signalHandler(int signum) {
+    if (teleop_node) {
+        RCLCPP_INFO(teleop_node->get_logger(), "Caught signal %d, shutting down teleop node", signum);
+        rclcpp::shutdown();
+    }
+}
+
+int main(int argc, char** argv) {
+    rclcpp::init(argc, argv);
+    
+    // Set up signal handler
+    signal(SIGINT, signalHandler);
+    signal(SIGTERM, signalHandler);
+    
+    try {
+        teleop_node = std::make_shared<flyscan::drone_controller::TeleopNode>();
+        rclcpp::spin(teleop_node);
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(rclcpp::get_logger("teleop_main"), "Exception caught: %s", e.what());
+    }
+    
+    teleop_node.reset();
+    rclcpp::shutdown();
+    return 0;
+}

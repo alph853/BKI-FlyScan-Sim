@@ -27,59 +27,6 @@ def generate_launch_description():
         'config',
         'rtabmap_config.yaml'
     ])
-    
-    # Odometry bridge node from flyscan_vision
-    odom_bridge_node = Node(
-        package='flyscan_vision',
-        executable='odom_bridge',
-        name='odom_bridge',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-        }],
-        output='screen'
-    )
-
-    # Static transform publisher for camera to base_link
-    static_tf_camera_to_base = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='camera_to_base_link',
-        arguments=[
-            '--x', '0.01233',
-            '--y', '-0.03',
-            '--z', '0.01878',
-            '--qx', '0',
-            '--qy', '0',
-            '--qz', '0',
-            '--qw', '1',
-            '--frame-id', 'base_link',
-            '--child-frame-id', 'x500_depth_0/camera_link/StereoOV7251'
-        ],
-        parameters=[{
-            'use_sim_time': use_sim_time
-        }]
-    )
-    
-    # Static transform publisher for camera to base_link
-    static_tf_imu_to_base = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='imu_to_base_link',
-        arguments=[
-            '--x', '0',
-            '--y', '0',
-            '--z', '0',
-            '--qx', '0',
-            '--qy', '0',
-            '--qz', '0',
-            '--qw', '1',
-            '--frame-id', 'base_link',
-            '--child-frame-id', 'x500_depth_0/base_link/imu_sensor'
-        ],
-        parameters=[{
-            'use_sim_time': use_sim_time
-        }]
-    )
 
     # RTAB-Map node for 3D SLAM
     rtabmap_node = Node(
@@ -118,18 +65,12 @@ def generate_launch_description():
         ],
         output='screen'
     )
-    
-    rviz2 = ExecuteProcess(
-        cmd=['rviz2'],
-        output='screen'
-    )
 
     return LaunchDescription([
         use_sim_time_arg,
-        odom_bridge_node,
-        static_tf_camera_to_base,
-        static_tf_imu_to_base,
         rtabmap_node,
         # rtabmap_viz,
-        rviz2
     ])
+
+
+    

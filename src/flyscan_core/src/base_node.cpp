@@ -11,8 +11,8 @@
 
 
 #include "flyscan_core/base_node.hpp"
-#include "flyscan_common/util.hpp"
-#include "flyscan_common/constants.hpp"
+#include "flyscan_common/request_util.hpp"
+#include "flyscan_core/constants.hpp"
 
 namespace flyscan {
 namespace core {
@@ -62,7 +62,7 @@ LifecycleCallbackReturn BaseNode::on_configure(const LifecycleState& state)
     * Service Consumers
     */
     using namespace std::placeholders;
-    namespace srv = flyscan::common::constants::srv;
+    namespace srv = flyscan::core::constants::srv;
 
     m_register_client   = this->create_client<RegisterNodeSrv>(srv::REGISTER_NODE);
     m_unregister_client = this->create_client<UnregisterNodeSrv>(srv::UNREGISTER_NODE);
@@ -259,8 +259,8 @@ OperationStatus BaseNode::RegisterWithLifeMonitor()
 
 void BaseNode::SetupHeartbeatPublishing()
 {
-    namespace qos   = flyscan::common::constants::qos;
-    namespace timer = flyscan::common::constants::timer;
+    namespace qos   = flyscan::core::constants::qos;
+    namespace timer = flyscan::core::constants::timer;
 
     if (m_heartbeat_topic.empty()) {
         RCLCPP_ERROR(this->get_logger(), "Cannot setup heartbeat - topic is empty");

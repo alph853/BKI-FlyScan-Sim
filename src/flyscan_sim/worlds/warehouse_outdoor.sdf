@@ -7,6 +7,7 @@
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>250</real_time_update_rate>
     </physics>
+    
     <gui fullscreen='false'>
       <plugin name='3D View' filename='GzScene3D'>
         <ignition-gui>
@@ -179,9 +180,9 @@
     
     <!-- Warehouse building without roof for GPS access -->
     <include>
-    <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Warehouse</uri>
-    <name>warehouse</name>
-    <pose>0 0 -0.089999999999999997 3.14159 3.14159 3.14159</pose>
+      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Warehouse</uri>
+      <name>warehouse</name>
+      <pose>0 0 -0.089999999999999997 3.14159 3.14159 3.14159</pose>
     </include>
     
     <!-- Warehouse contents -->
@@ -189,16 +190,6 @@
       <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/cart_model_2</uri>
       <name>cart1</name>
       <pose>-5.7300000000000004 15 0.25 0 0 0</pose>
-    </include>
-    <include>
-      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf_big</uri>
-      <name>shelf_big_0</name>
-      <pose>-9.3417700000000004 -13.559799999999999 0 0 0 0</pose>
-    </include>
-    <include>
-      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
-      <name>shelf</name>
-      <pose>-4.4152800000000001 -0.69098700000000002 0 0 0 0</pose>
     </include>
     <include>
       <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
@@ -301,6 +292,16 @@
       <pose>14.0222 -24.335000000000001 0.01 0 0 0</pose>
     </include>
     
+    <!-- QR codes for shelf_big_4 (pose: -5.363, -12.965, 0) -->
+    <model name="qr_shelfbig4_1"><static>true</static><pose>-4.9 -4.5 2.2 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    <model name="qr_shelfbig4_2"><static>true</static><pose>-4.9 -5.4 2.2 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    <model name="qr_shelfbig4_3"><static>true</static><pose>-4.88 -6.3 2.2 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    <model name="qr_shelfbig4_4"><static>true</static><pose>-4.9 -7.2 2.2 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    <model name="qr_shelfbig4_5"><static>true</static><pose>-4.9 -8.1 2.2 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    <model name="qr_shelfbig4_6"><static>true</static><pose>-4.9 -5.4 2.81 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    <model name="qr_shelfbig4_7"><static>true</static><pose>-4.9 -6.7 2.81 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    <model name="qr_shelfbig4_8"><static>true</static><pose>-4.9 -7.9 2.81 0 0 0</pose><link name="qr_link"><visual name="qr_visual"><geometry><plane><normal>1 0 0</normal><size>0.2 0.2</size></plane></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><pbr><metal><albedo_map>resources/qr.png</albedo_map></metal></pbr></material></visual></link></model>
+    
     <!-- Outdoor lighting - sun positioned high for GPS simulation -->
     <light name='sun' type='directional'>
       <pose>0 0 50 0 0 0</pose>
@@ -400,5 +401,115 @@
       </link>
     </model>
     
+    <!-- Origin marker -->
+    <model name="origin_marker">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <visual name="marker">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>1 0 1 1</ambient>
+            <diffuse>1 0 1 1</diffuse>
+          </material>
+        </visual>
+
+        <visual name="x_axis">
+          <geometry>
+            <cylinder>
+              <radius>0.02</radius>
+              <length>24</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Red</name>
+            </script>
+          </material>
+          <pose>12 0 0 0 -1.5708 0</pose>
+        </visual>
+        <visual name="y_axis">
+          <geometry><cylinder><radius>0.02</radius><length>24</length></cylinder></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Green</name>
+            </script>
+          </material>
+          <pose>0 12 0 -1.5708 0 0</pose>
+        </visual>
+        <visual name="z_axis">
+          <geometry><cylinder><radius>0.02</radius><length>24</length></cylinder></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Blue</name>
+            </script>
+          </material>
+          <pose>0 0 12 0 0 0</pose>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Omega1 marker -->
+    <!-- <model name="omega1_marker">
+      <static>true</static>
+      <pose>-2 2 0 0 0 0</pose>
+      <link name="link">
+        <visual name="marker">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>1 0 1 1</ambient>
+            <diffuse>1 0 1 1</diffuse>
+          </material>
+        </visual>
+
+        <visual name="x_axis">
+          <geometry>
+            <cylinder>
+              <radius>0.02</radius>
+              <length>24</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Red</name>
+            </script>
+          </material>
+          <pose>12 0 0 0 -1.5708 0</pose>
+        </visual>
+        <visual name="y_axis">
+          <geometry><cylinder><radius>0.02</radius><length>24</length></cylinder></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Green</name>
+            </script>
+          </material>
+          <pose>0 12 0 -1.5708 0 0</pose>
+        </visual>
+        <visual name="z_axis">
+          <geometry><cylinder><radius>0.02</radius><length>24</length></cylinder></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Blue</name>
+            </script>
+          </material>
+          <pose>0 0 12 0 0 0</pose>
+        </visual>
+      </link>
+    </model> -->
+
   </world>
 </sdf>

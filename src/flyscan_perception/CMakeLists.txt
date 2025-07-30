@@ -1,16 +1,35 @@
 cmake_minimum_required(VERSION 3.8)
 project(flyscan_perception)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+# ───────────────────────────
+# Compiler Settings
+# ───────────────────────────
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_compile_options(
+    -Wall -Wextra -Wpedantic
+    -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=${PROJECT_NAME}
+    -fdebug-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=${PROJECT_NAME}
+  )
 endif()
 
-# find dependencies
+# ───────────────────────────
+# Find Dependencies
+# ───────────────────────────
+
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
+
+find_package(flyscan_core REQUIRED)
+find_package(flyscan_common REQUIRED)
 
 # Find ONNX Runtime
 find_path(ONNXRUNTIME_INCLUDE_DIR 
@@ -32,44 +51,84 @@ else()
   message(WARNING "Or download from: https://github.com/microsoft/onnxruntime/releases")
 endif()
 
-# Add executable
-add_executable(video_streamer src/video_streamer.cpp)
+# ───────────────────────────
+# Build Nodes
+# ───────────────────────────
 
-# Include directories
-target_include_directories(video_streamer PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  ${ONNXRUNTIME_INCLUDE_DIR}
-)
+set(NODE_TARGETS)
 
-target_link_libraries(video_streamer 
-  ${cv_bridge_LIBRARIES}
-  ${ONNXRUNTIME_LIB}
-)
+macro(add_target name type source deps libs)
+  if(${type} STREQUAL "executable")
+    add_executable(${name} ${source})
+    target_include_directories(${name}
+      PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    )
+  elseif(${type} STREQUAL "library")
+    add_library(${name} SHARED ${source})
+    target_include_directories(${name}
+      PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    )
+  endif()
 
-# Link libraries
-ament_target_dependencies(video_streamer
+  target_link_libraries(${name} ${libs})
+
+  ament_target_dependencies(${name} ${deps})
+
+  list(APPEND NODE_TARGETS ${name})
+endmacro()
+
+set(semantic_perception_packages
   rclcpp
+  rclcpp_lifecycle
   sensor_msgs
   cv_bridge
   OpenCV
+
+  flyscan_common
 )
 
-# Install targets
-install(TARGETS video_streamer
-  DESTINATION lib/${PROJECT_NAME}
+add_target(semantic_perception executable
+  "src/semantic_perception.cpp"
+  "${semantic_perception_packages}"
+  "flyscan_core::base_node;${cv_bridge_LIBRARIES};${ONNXRUNTIME_LIB}"
 )
+
+# Include directories for semantic_perception
+# target_include_directories(semantic_perception PUBLIC
+#   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#   $<INSTALL_INTERFACE:include>
+#   ${ONNXRUNTIME_INCLUDE_DIR}
+# )
+
+# ───────────────────────────
+# Install Rules
+# ───────────────────────────
+
+install(TARGETS ${NODE_TARGETS}
+  EXPORT ${PROJECT_NAME}-targets
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+install(DIRECTORY include/ DESTINATION include/)
+
+# ───────────────────────────
+# Testing & Linting
+# ───────────────────────────
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
+  set(ament_cmake_copyright_FOUND TR
+UE)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+# ───────────────────────────
+# Finalize
+# ───────────────────────────
 
 ament_package()

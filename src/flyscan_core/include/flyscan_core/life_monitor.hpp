@@ -22,7 +22,7 @@
 
 #include "flyscan_common/types.hpp"
 #include "flyscan_common/enums.hpp"
-#include "flyscan_common/constants.hpp"
+#include "flyscan_core/constants.hpp"
 
 #include "flyscan_interfaces/srv/get_registered_nodes.hpp"
 #include "flyscan_interfaces/msg/node_info.hpp"

@@ -76,19 +76,19 @@ set(common_packages
 )
 
 add_target(px4_controller executable 
-  "src/px4_controller_main.cpp;src/px4_controller.cpp;src/util.cpp;src/terminal_controller.cpp"
+  "src/px4_controller.cpp"
   "${common_packages}"
   flyscan_core::base_node
 )
 add_target(px4_controller_component library
-  "src/px4_controller.cpp;src/util.cpp;src/terminal_controller.cpp"
+  "src/px4_controller.cpp"
   "${common_packages}"
   flyscan_core::base_node
 )
 rclcpp_components_register_nodes(px4_controller_component "flyscan::drone_controller::PX4Controller")
 
 add_target(teleop_node executable 
-  "src/teleop_node_main.cpp;src/teleop_node.cpp"
+  "src/teleop_node.cpp"
   "${common_packages}"
   ""
 )

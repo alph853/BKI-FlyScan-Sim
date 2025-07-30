@@ -3,7 +3,7 @@
 #include <sstream>
 
 #include "flyscan_core/life_monitor.hpp"
-#include "flyscan_common/constants.hpp"
+#include "flyscan_core/constants.hpp"
 
 namespace flyscan {
 namespace core {
@@ -14,7 +14,7 @@ LifeMonitor::LifeMonitor(const rclcpp::NodeOptions & options)
     RCLCPP_INFO(this->get_logger(), "LifeMonitor node initializing");
 
     using namespace std::placeholders;
-    using namespace flyscan::common::constants;
+    using namespace flyscan::core::constants;
 
     /*
      * Services providers
@@ -34,7 +34,7 @@ LifeMonitor::LifeMonitor(const rclcpp::NodeOptions & options)
     /*
      * Timers
     */
-    namespace timer = flyscan::common::constants::timer;
+    namespace timer = flyscan::core::constants::timer;
 
     m_node_monitor_timer = this->create_wall_timer(
         timer::HEARTBEAT_MONITOR_PERIOD,
@@ -86,7 +86,7 @@ void LifeMonitor::HandleRegisterNode(
         return;
     }
     
-    namespace qos = flyscan::common::constants::qos;
+    namespace qos = flyscan::core::constants::qos;
     std::string state_topic = "/" + request->node_name + "/state";
 
     auto state_subscription = this->create_subscription<lifecycle_msgs::msg::State>(

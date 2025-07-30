@@ -42,6 +42,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Hypermap.msg"
   "msg/Odometry.msg"
   "msg/TeleopCommand.msg"
+  "msg/BoundingBox.msg"
+  "msg/Detection.msg"
+  "msg/DetectionArray.msg"
 
   "srv/GetRegisteredNodes.srv"
   "srv/RegisterNode.srv"
