@@ -18,8 +18,8 @@ find_package(tf2_ros REQUIRED)
 
 include_directories(include)
 
-add_executable(odom_bridge src/odom_bridge.cpp)
-ament_target_dependencies(odom_bridge
+add_executable(px4_ros_bridge src/px4_ros_bridge.cpp)
+ament_target_dependencies(px4_ros_bridge
   rclcpp
   px4_msgs
   nav_msgs
@@ -28,7 +28,7 @@ ament_target_dependencies(odom_bridge
 )
 
 install(TARGETS
-  odom_bridge
+  px4_ros_bridge
   DESTINATION lib/${PROJECT_NAME}
 )
 

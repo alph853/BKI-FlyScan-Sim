@@ -112,7 +112,7 @@ public:
      * @param timeout_ms Timeout in milliseconds
      * @return OperationStatus indicating success or failure
      */
-    OperationStatus StartOffboardMode(int timeout_ms = 5000);
+    OperationStatus StartOffboardMode();
     
     /**
      * @brief Stop offboard mode and return to manual control

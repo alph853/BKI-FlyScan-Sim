@@ -2,28 +2,53 @@
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch.actions import ExecuteProcess
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution
+from launch.conditions import IfCondition
 
 
 def generate_launch_description():
-    
-    # Declare launch arguments
+
+    # --------------------------------------
+    # >>> Declare launch arguments >>>
+    # --------------------------------------
+
+    mode_arg = DeclareLaunchArgument(
+        'mode',
+        default_value='sim',
+        description='Simulation mode (sim or deploy)'
+    )
     use_sim_time_arg = DeclareLaunchArgument(
         'use_sim_time',
         default_value='true',
         description='Use simulation (Gazebo) clock if true'
     )
+    launch_viz_arg = DeclareLaunchArgument(
+        'launch_viz',
+        default_value='false',
+        description='Launch RTAB-Map Viz visualization if true'
+    )
+    log_level_arg = DeclareLaunchArgument(
+        'log_level',
+        default_value='warn',
+        description='Set the log level for RTAB-Map nodes'
+    )
 
-    # Launch configuration variables
+    mode = LaunchConfiguration('mode')
     use_sim_time = LaunchConfiguration('use_sim_time')
-    
+    launch_viz = LaunchConfiguration('launch_viz')
+    log_level = LaunchConfiguration('log_level')
+
+    # --------------------------------------
+    # >>> Launch description components >>>
+    # --------------------------------------
+
     # Path to the RTAB-Map configuration file
     config_file_path = PathJoinSubstitution([
-        FindPackageShare('flyscan_sim'),
+        FindPackageShare('flyscan_bringup'),
         'config',
         'rtabmap_config.yaml'
     ])
@@ -45,7 +70,7 @@ def generate_launch_description():
             ('grid_map', '/rtabmap/grid_map'),
         ],
         output='screen',
-        arguments=['--delete_db_on_start']
+        arguments=['--delete_db_on_start', '--ros-args', '--log-level', log_level],
     )
 
     rtabmap_viz = Node(
@@ -63,13 +88,17 @@ def generate_launch_description():
             ('imu', '/imu/data'),
             ('grid_map', '/rtabmap/grid_map'),
         ],
-        output='screen'
+        output='screen',
+        condition=IfCondition(PythonExpression(["'", mode, "' == 'sim' and '", launch_viz, "' == 'true'"])),
     )
 
     return LaunchDescription([
         use_sim_time_arg,
+        launch_viz_arg,
+        log_level_arg,
+        mode_arg,
         rtabmap_node,
-        # rtabmap_viz,
+        rtabmap_viz,
     ])
 
 

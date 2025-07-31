@@ -451,7 +451,7 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
     }
 }
 
-OperationStatus PX4Controller::StartOffboardMode(int timeout_ms) {
+OperationStatus PX4Controller::StartOffboardMode() {
 
     RCLCPP_INFO(this->get_logger(), "Starting offboard mode sequence...");
     namespace config = flyscan::drone_controller::constants::config;

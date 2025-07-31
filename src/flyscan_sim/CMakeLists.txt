@@ -28,8 +28,10 @@ find_package(rclcpp REQUIRED)
 # find_package(ros_gz REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -65,17 +67,18 @@ macro(add_target name type source deps libs)
   list(APPEND NODE_TARGETS ${name})
 endmacro()
 
-set(marker_publisher_packages
+set(visualization_node_packages
   rclcpp
   visualization_msgs
   geometry_msgs
+  nav_msgs
   std_msgs
   tf2
 )
 
-add_target(marker_publisher executable
-  "src/marker_publisher.cpp"
-  "${marker_publisher_packages}"
+add_target(visualization_node executable
+  "src/visualization_node.cpp"
+  "${visualization_node_packages}"
   ""
 )
 
@@ -107,9 +110,6 @@ install(DIRECTORY include/ DESTINATION include/)
 
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
-)
-install(DIRECTORY config/
-  DESTINATION share/${PROJECT_NAME}/config
 )
 install(DIRECTORY worlds/
   DESTINATION share/${PROJECT_NAME}/worlds

@@ -1,43 +1,64 @@
-#include "flyscan_sim/marker_publisher.hpp"
+/**
+ * @file visualization_node.cpp
+ * @brief Implementation of visualization node for coordinate systems, QR markers, and transforms
+ * @author FlyScan Team
+ * @date 2025
+ */
 
-MarkerPublisher::MarkerPublisher() : Node("marker_publisher")
+#include "flyscan_sim/visualization_node.hpp"
+
+VisualizationNode::VisualizationNode() : Node("visualization_node")
 {
+    // Declare and get parameters
+    if (!this->has_parameter("use_sim_time")) {
+        this->declare_parameter("use_sim_time", false);
+    }
+    if (!this->has_parameter("max_path_length")) {
+        this->declare_parameter<int>("max_path_length", 1000);
+    }
+
+    this->get_parameter("max_path_length", max_path_length_);
+
     marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
         "/visualization_marker_array", 10);
     
+    path_pub_ = this->create_publisher<nav_msgs::msg::Path>("/odom_path", 10);
+    
+    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        "/odom",
+        10,
+        std::bind(&VisualizationNode::odomCallback, this, std::placeholders::_1)
+    );
+    
+    RCLCPP_INFO(this->get_logger(), "Visualization node started with path visualization");
+    
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(1000),
-        std::bind(&MarkerPublisher::publish_markers, this));
-        
-    RCLCPP_INFO(this->get_logger(), "Marker publisher node started");
+        std::bind(&VisualizationNode::publish_markers, this));
 }
 
-void MarkerPublisher::publish_markers()
+void VisualizationNode::publish_markers()
 {
     visualization_msgs::msg::MarkerArray marker_array;
 
-    // Clear previous markers
     visualization_msgs::msg::Marker clear_marker;
     clear_marker.header.frame_id = "map";
     clear_marker.header.stamp = this->get_clock()->now();
     clear_marker.action = visualization_msgs::msg::Marker::DELETEALL;
     marker_array.markers.push_back(clear_marker);
     
-    // Publish coordinate system at map origin (0,0,0)
     add_coordinate_system(marker_array, 0.0, 0.0, 0.0, "map_origin", 0);
-    // add_coordinate_system(marker_array, -2.0, 2.0, 0.24, "omega1", 90);
     
-    // // Add text labels
     add_text_marker(marker_array, 0.0, 0.0, 2.0, "origin", "origin_text", 200);
-    // add_text_marker(marker_array, -2.0, 2.0, 2.24, "omega1", "omega1_text", 201);
     
-    // Add QR code markers
     add_qr_markers(marker_array);
     
     marker_pub_->publish(marker_array);
+
 }
 
-void MarkerPublisher::add_coordinate_system(visualization_msgs::msg::MarkerArray& marker_array, 
+
+void VisualizationNode::add_coordinate_system(visualization_msgs::msg::MarkerArray& marker_array, 
                          double x, double y, double z, 
                          const std::string& ns, int id_base)
 {
@@ -66,7 +87,7 @@ void MarkerPublisher::add_coordinate_system(visualization_msgs::msg::MarkerArray
     marker_array.markers.push_back(z_axis);
 }
 
-visualization_msgs::msg::Marker MarkerPublisher::create_axis_marker(double x, double y, double z,
+visualization_msgs::msg::Marker VisualizationNode::create_axis_marker(double x, double y, double z,
                                                   double qx, double qy, double qz, double qw,
                                                   double r, double g, double b, double a,
                                                   const std::string& ns, int id)
@@ -101,7 +122,7 @@ visualization_msgs::msg::Marker MarkerPublisher::create_axis_marker(double x, do
     return marker;
 }
 
-void MarkerPublisher::add_text_marker(visualization_msgs::msg::MarkerArray& marker_array,
+void VisualizationNode::add_text_marker(visualization_msgs::msg::MarkerArray& marker_array,
                     double x, double y, double z,
                     const std::string& text, const std::string& ns, int id)
 {
@@ -134,7 +155,7 @@ void MarkerPublisher::add_text_marker(visualization_msgs::msg::MarkerArray& mark
     marker_array.markers.push_back(text_marker);
 }
 
-void MarkerPublisher::add_qr_markers(visualization_msgs::msg::MarkerArray& marker_array)
+void VisualizationNode::add_qr_markers(visualization_msgs::msg::MarkerArray& marker_array)
 {
     // QR code positions from warehouse_outdoor.sdf
     struct QRCode {
@@ -160,7 +181,7 @@ void MarkerPublisher::add_qr_markers(visualization_msgs::msg::MarkerArray& marke
     }
 }
 
-visualization_msgs::msg::Marker MarkerPublisher::create_qr_marker(double x, double y, double z,
+visualization_msgs::msg::Marker VisualizationNode::create_qr_marker(double x, double y, double z,
                                                                   const std::string& /* name */, int id)
 {
     visualization_msgs::msg::Marker marker;
@@ -195,10 +216,36 @@ visualization_msgs::msg::Marker MarkerPublisher::create_qr_marker(double x, doub
     return marker;
 }
 
+void VisualizationNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
+{
+    // Create PoseStamped from odometry message
+    geometry_msgs::msg::PoseStamped pose_stamped;
+    pose_stamped.header = msg->header;
+    pose_stamped.pose = msg->pose.pose;
+    
+    // Update path
+    odom_path_.header = msg->header;
+    odom_path_.poses.push_back(pose_stamped);
+    
+    // Limit path length to prevent memory issues
+    if (odom_path_.poses.size() > max_path_length_) {
+        odom_path_.poses.erase(odom_path_.poses.begin());
+    }
+    
+    // Publish path visualization
+    path_pub_->publish(odom_path_);
+}
+
+/**
+ * @brief Main function for visualization node
+ * @param argc Command line argument count
+ * @param argv Command line arguments
+ * @return Exit status
+ */
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<MarkerPublisher>();
+    auto node = std::make_shared<VisualizationNode>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;

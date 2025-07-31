@@ -40,8 +40,6 @@ namespace config {
     constexpr const float POSITION_STEP = 0.5f;      // meters per step
     constexpr const float YAW_STEP = 15.0f;          // degrees per step
     
-    // 8-shape pattern parameters
-    constexpr const double EIGHT_SHAPE_SPEED = 1.0;  // Speed scaling factor
 } // namespace config
 
 } // namespace constants
