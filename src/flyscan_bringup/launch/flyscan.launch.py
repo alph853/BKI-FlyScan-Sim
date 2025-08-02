@@ -34,7 +34,7 @@ def generate_launch_description():
     px4_sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
-                FindPackageShare('flyscan_sim'),
+                FindPackageShare('flyscan_simulation'),
                 'launch',
                 'px4_sim.launch.py'
             ])

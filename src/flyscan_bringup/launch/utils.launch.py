@@ -72,7 +72,6 @@ def generate_launch_description():
         'config',
         'gz_bridge_config.yaml'
     ])
-    camera_topic_prefix = '/world/warehouse_outdoor/model/x500_depth_0/link/camera_link/sensor/StereoOV7251'
     gz_bridge_node = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -82,10 +81,10 @@ def generate_launch_description():
             gz_bridge_config_file
         ],
         arguments=[
-            f'{camera_topic_prefix}/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
-            f'{camera_topic_prefix}/image@sensor_msgs/msg/Image@gz.msgs.Image',
-            f'{camera_topic_prefix}/depth_image@sensor_msgs/msg/Image@gz.msgs.Image',
-            f'{camera_topic_prefix}/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
+            'rgbd_camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+            'rgbd_camera/image@sensor_msgs/msg/Image@gz.msgs.Image',
+            'rgbd_camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image',
+            'rgbd_camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
 
             '/world/warehouse_outdoor/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
 
@@ -93,10 +92,10 @@ def generate_launch_description():
             '/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
         ],
         remappings=[
-            (f'{camera_topic_prefix}/camera_info', '/camera/camera_info'),
-            (f'{camera_topic_prefix}/image', '/camera/image_raw'),
-            (f'{camera_topic_prefix}/depth_image', '/camera/depth/image'),
-            (f'{camera_topic_prefix}/points', '/camera/depth/points'),
+            ('rgbd_camera/camera_info', '/camera/camera_info'),
+            ('rgbd_camera/image', '/camera/image_raw'),
+            ('rgbd_camera/depth_image', '/camera/depth/image'),
+            ('rgbd_camera/points', '/camera/depth/points'),
             ('/world/warehouse_outdoor/clock', '/clock'),
             ('/world/warehouse_outdoor/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu', '/imu/data'),
         ],
@@ -148,7 +147,7 @@ def generate_launch_description():
 
     # Visualization node (sim mode only)
     visualization_node = Node(
-        package='flyscan_sim',
+        package='flyscan_simulation',
         executable='visualization_node',
         name='visualization_node',
         parameters=[{
@@ -161,7 +160,7 @@ def generate_launch_description():
 
     # Video streamer node (sim mode only)
     video_streamer_node = Node(
-        package='flyscan_sim',
+        package='flyscan_simulation',
         executable='video_streamer',
         name='video_streamer',
         parameters=[{

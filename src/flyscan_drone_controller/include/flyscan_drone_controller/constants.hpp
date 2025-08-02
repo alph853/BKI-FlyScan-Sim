@@ -21,7 +21,7 @@ namespace topic {
     constexpr const char* PX4_VEHICLE_COMMAND       = "/fmu/in/vehicle_command";
     
     // PX4 output topics (telemetry from PX4)
-    constexpr const char* PX4_VEHICLE_LOCAL_POSITION = "/fmu/out/vehicle_local_position";
+    constexpr const char* PX4_VEHICLE_LOCAL_POSITION = "/fmu/out/vehicle_local_position_v1";
     constexpr const char* PX4_VEHICLE_STATUS         = "/fmu/out/vehicle_status_v1";
     constexpr const char* PX4_VEHICLE_LAND_DETECTED  = "/fmu/out/vehicle_land_detected";
     

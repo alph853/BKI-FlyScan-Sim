@@ -1,0 +1,867 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.10">
+  <world name="qr_stocks">
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_0</name>
+      <pose>-4.41528 2.30697 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_1</name>
+      <pose>-4.41528 5.30708 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_2</name>
+      <pose>-4.41528 8.34352 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_3</name>
+      <pose>5.60144 8.34352 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_4</name>
+      <pose>5.60144 5.30708 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_5</name>
+      <pose>5.60144 -0.690987 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_6</name>
+      <pose>5.60144 2.30697 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_7</name>
+      <pose>13.3818 -21.2416 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_8</name>
+      <pose>13.3818 -19.0028 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_9</name>
+      <pose>13.3818 -16.4478 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_10</name>
+      <pose>13.3818 -14.1028 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_big_1</name>
+      <pose>13.9821 15.319 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_big_2</name>
+      <pose>6.19777 -12.9647 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <include>
+      <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
+      <name>shelf_big_3</name>
+      <pose>0.594376 -12.9647 0.0 0.0 0.0 0.0</pose>
+    </include>
+    <model name="shelf_big_4">
+      <static>true</static>
+      <pose>-5.36284 -12.9647 0.0 0.0 0.0 0.0</pose>
+      <link name="shelf_link">
+        <visual name="shelf_visual">
+          <geometry>
+            <box>
+              <size>3.6 0.6 2.4</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+          </material>
+        </visual>
+        <collision name="shelf_collision">
+          <geometry>
+            <box>
+              <size>3.6 0.6 2.4</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+      <link name="qr_link_0">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_0" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_0</child>
+        <pose>0.4628399999999999 8.4647 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_1">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_1" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_1</child>
+        <pose>0.4628399999999999 7.5647 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_2">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_2" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_2</child>
+        <pose>0.4828400000000004 6.664700000000001 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_3">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_3" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_3</child>
+        <pose>0.4628399999999999 5.7647 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_4">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_4" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_4</child>
+        <pose>0.4628399999999999 4.864700000000001 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_5">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_5" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_5</child>
+        <pose>0.4628399999999999 7.5647 2.81 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_6">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_6" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_6</child>
+        <pose>0.4628399999999999 6.2647 2.81 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_7">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_7" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_7</child>
+        <pose>0.4628399999999999 5.0647 2.81 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_8">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_8" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_8</child>
+        <pose>0.49284000000000017 3.9847 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_9">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_9" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_9</child>
+        <pose>0.49284000000000017 3.0147000000000013 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_10">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_10" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_10</child>
+        <pose>0.49284000000000017 3.0147000000000013 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_11">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_11" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_11</child>
+        <pose>0.49284000000000017 2.1747000000000014 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_12">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_12" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_12</child>
+        <pose>0.49284000000000017 1.2247000000000003 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_13">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_13" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_13</child>
+        <pose>0.49284000000000017 0.3847000000000005 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_14">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_14" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_14</child>
+        <pose>0.49284000000000017 0.3847000000000005 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_15">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_15" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_15</child>
+        <pose>0.49284000000000017 -0.5252999999999997 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_16">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_16" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_16</child>
+        <pose>0.49284000000000017 -0.5252999999999997 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_17">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_17" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_17</child>
+        <pose>0.49284000000000017 -1.3353000000000002 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_18">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_18" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_18</child>
+        <pose>0.49284000000000017 -2.1152999999999995 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_19">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_19" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_19</child>
+        <pose>0.49284000000000017 -2.1152999999999995 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_20">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_20" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_20</child>
+        <pose>0.49284000000000017 -3.7653 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_21">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_21" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_21</child>
+        <pose>0.49284000000000017 -3.9452999999999996 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_22">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_22" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_22</child>
+        <pose>0.49284000000000017 -3.9452999999999996 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_23">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_23" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_23</child>
+        <pose>0.49284000000000017 -5.065300000000001 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_24">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_24" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_24</child>
+        <pose>0.49284000000000017 -5.065300000000001 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_25">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_25" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_25</child>
+        <pose>0.49284000000000017 -5.805299999999999 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_26">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_26" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_26</child>
+        <pose>0.49284000000000017 -5.805299999999999 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_27">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_27" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_27</child>
+        <pose>0.49284000000000017 -6.0853 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_28">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_28" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_28</child>
+        <pose>0.49284000000000017 -7.635300000000001 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_29">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_29" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_29</child>
+        <pose>0.49284000000000017 -7.635300000000001 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_30">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_30" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_30</child>
+        <pose>0.49284000000000017 -8.3353 2.2 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+      <link name="qr_link_31">
+        <visual name="qr_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.2 0.2</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <pbr>
+              <metal>
+                <albedo_map>resources/QR/qr.png</albedo_map>
+              </metal>
+            </pbr>
+          </material>
+        </visual>
+      </link>
+      <joint name="qr_joint_31" type="fixed">
+        <parent>shelf_link</parent>
+        <child>qr_link_31</child>
+        <pose>0.49284000000000017 -8.3353 2.75 0.0 1.5700000000000003 0.0</pose>
+      </joint>
+    </model>
+  </world>
+</sdf>
