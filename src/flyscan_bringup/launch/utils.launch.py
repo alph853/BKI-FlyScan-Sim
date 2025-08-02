@@ -178,7 +178,7 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression(["'", mode, "' == 'sim'"]))    
     )
 
-    rtabmap_launch = IncludeLaunchDescription(
+    rtabmap_launcher = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
                 FindPackageShare('flyscan_bringup'),
@@ -211,7 +211,6 @@ def generate_launch_description():
         executable='px4_controller',
         name='px4_controller',
         parameters=[
-
             {'use_sim_time': use_sim_time}
         ],
         output='screen',
@@ -248,5 +247,5 @@ def generate_launch_description():
             px4_controller_node,
             semantic_perception_node,
         )),
-        rtabmap_launch,
+        rtabmap_launcher,
     ])

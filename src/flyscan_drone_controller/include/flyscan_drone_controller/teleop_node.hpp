@@ -18,17 +18,17 @@ public:
     ~TeleopNode();
 
 private:
-    void inputLoop();
-    void processInput(char key);
-    void sendTeleopCommand();
-    void sendExitCommand();
-    bool initializeTerminal();
-    void cleanupTerminal();
-    bool kbhit();
-    char getch();
-    void printInstructions();
-    void startEightShapePattern();
-    void executeEightShapeStep();
+    void InputLoop();
+    void ProcessInput(char key);
+    void SendTeleopCommand();
+    void SendExitCommand();
+    bool InitializeTerminal();
+    void CleanupTerminal();
+    bool Kbhit();
+    char Getch();
+    void PrintInstructions();
+    void StartEightShapePattern();
+    void ExecuteEightShapeStep();
 
     // ROS2 interfaces
     rclcpp::Client<flyscan_interfaces::srv::SetControlMode>::SharedPtr mode_client_;

@@ -22,15 +22,9 @@ def generate_launch_description():
         default_value='true',
         description='Use simulation (Gazebo) clock if true'
     )
-    semantic_perception_arg = DeclareLaunchArgument(
-        'semantic_perception',
-        default_value='false',
-        description='Launch semantic perception node if true'
-    )
 
     mode = LaunchConfiguration('mode')
     use_sim_time = LaunchConfiguration('use_sim_time')
-    semantic_perception = LaunchConfiguration('semantic_perception')
 
     # --------------------------------------
     # >>> Launch description components >>>
@@ -108,7 +102,6 @@ def generate_launch_description():
             {'use_sim_time': use_sim_time}
         ],
         output='screen',
-        condition=IfCondition(semantic_perception)
     )
 
     return LaunchDescription([
@@ -116,7 +109,6 @@ def generate_launch_description():
         use_sim_time_arg,
         px4_sim_launch,
         utils_launch,
-        semantic_perception_arg,
         life_monitor_node,
         px4_controller_node,
         semantic_perception_node,

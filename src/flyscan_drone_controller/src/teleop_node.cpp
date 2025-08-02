@@ -23,7 +23,7 @@ TeleopNode::TeleopNode()
     teleop_pub_ = this->create_publisher<flyscan_interfaces::msg::TeleopCommand>(topic::TELEOP_COMMAND, 10);
 
     // Initialize terminal for keyboard input
-    if (!initializeTerminal()) {
+    if (!InitializeTerminal()) {
         RCLCPP_ERROR(this->get_logger(), "Failed to initialize terminal. Teleop will not work.");
         return;
     }
@@ -37,35 +37,28 @@ TeleopNode::TeleopNode()
         response = sync_send_request<flyscan_interfaces::srv::SetControlMode>(this->get_node_base_interface(), mode_client_, request, 20s, 20s);
     } catch(const std::runtime_error &e) {
         RCLCPP_ERROR(this->get_logger(), "Service call fail in %s: %s", this->get_name(), e.what());
-        cleanupTerminal();
+        CleanupTerminal();
         return;
     } catch(const std::exception &e) {
         RCLCPP_ERROR(this->get_logger(), "Exception caught in %s: %s", this->get_name(), e.what());
-        cleanupTerminal();
+        CleanupTerminal();
         return;
     }
 
     if (!response->success) {
         RCLCPP_ERROR(this->get_logger(), "Failed to switch to teleop mode: %s", response->message.c_str());
-        cleanupTerminal();
+        CleanupTerminal();
         return;
     }
 
     RCLCPP_INFO(this->get_logger(), "Successfully switched to teleop mode");
     teleop_active_ = true;
-    printInstructions();
+    PrintInstructions();
 
-    input_timer_ = this->create_wall_timer(50ms, std::bind(&TeleopNode::inputLoop, this));
+    input_timer_ = this->create_wall_timer(50ms, std::bind(&TeleopNode::InputLoop, this));
     
     // Initialize command message
-    current_command_.forward = 0.0f;
-    current_command_.right = 0.0f;
-    current_command_.up = 0.0f;
-    current_command_.yaw_rate = 0.0f;
-    current_command_.hold_position = false;
-    current_command_.exit_teleop = false;
-    current_command_.takeoff = false;
-    current_command_.land = false;
+    current_command_.command = "stop";
     
     // Initialize 8-shape pattern state
     executing_eight_shape_ = false;
@@ -74,7 +67,7 @@ TeleopNode::TeleopNode()
 
 TeleopNode::~TeleopNode() {
     if (teleop_active_) {
-        sendExitCommand();
+        SendExitCommand();
     }
     
     // Clean up 8-shape timer if running
@@ -84,114 +77,105 @@ TeleopNode::~TeleopNode() {
     }
     executing_eight_shape_ = false;
     
-    cleanupTerminal();
+    CleanupTerminal();
 }
 
-void TeleopNode::inputLoop() {
+void TeleopNode::InputLoop() {
     if (!teleop_active_) return;
     
-    if (kbhit()) {
-        char key = getch();
+    if (Kbhit()) {
+        char key = this->Getch();
         // Only process input if not executing 8-shape pattern (except ESC key)
         if (!executing_eight_shape_ || key == 27) {
-            processInput(key);
+            this->ProcessInput(key);
         }
     }
 }
 
-void TeleopNode::processInput(char key) {
-    // Reset command
-    current_command_.forward = 0.0f;
-    current_command_.right = 0.0f;
-    current_command_.up = 0.0f;
-    current_command_.yaw_rate = 0.0f;
-    current_command_.hold_position = false;
-    current_command_.exit_teleop = false;
-    current_command_.takeoff = false;
-    current_command_.land = false;
+void TeleopNode::ProcessInput(char key) {
     
     switch (key) {
         case 'w':
         case 'W':
             RCLCPP_INFO(this->get_logger(), "W: Forward");
-            current_command_.forward = 1.0f;
+            current_command_.command = "forward";
             break;
         case 's':
         case 'S':
             RCLCPP_INFO(this->get_logger(), "S: Backward");
-            current_command_.forward = -1.0f;
+            current_command_.command = "backward";
             break;
         case 'a':
         case 'A':
             RCLCPP_INFO(this->get_logger(), "A: Left");
-            current_command_.right = -1.0f;
+            current_command_.command = "left";
             break;
         case 'd':
         case 'D':
             RCLCPP_INFO(this->get_logger(), "D: Right");
-            current_command_.right = 1.0f;
+            current_command_.command = "right";
             break;
         case 'q':
         case 'Q':
             RCLCPP_INFO(this->get_logger(), "Q: Up");
-            current_command_.up = 1.0f;
+            current_command_.command = "up";
             break;
         case 'e':
         case 'E':
             RCLCPP_INFO(this->get_logger(), "E: Down");
-            current_command_.up = -1.0f;
+            current_command_.command = "down";
             break;
         case 'j':
         case 'J':
             RCLCPP_INFO(this->get_logger(), "J: Yaw left");
-            current_command_.yaw_rate = -1.0f;
+            current_command_.command = "yaw_left";
             break;
         case 'l':
         case 'L':
             RCLCPP_INFO(this->get_logger(), "L: Yaw right");
-            current_command_.yaw_rate = 1.0f;
+            current_command_.command = "yaw_right";
             break;
         case ' ':
             RCLCPP_INFO(this->get_logger(), "SPACE: Hold position");
-            current_command_.hold_position = true;
+            current_command_.command = "hold_position";
             break;
         case 't':
         case 'T':
             RCLCPP_INFO(this->get_logger(), "T: Takeoff");
-            current_command_.takeoff = true;
+            current_command_.command = "takeoff";
             break;
         case 'p':
         case 'P':
             RCLCPP_INFO(this->get_logger(), "P: Land");
-            current_command_.land = true;
+            current_command_.command = "land";
             break;
         case '8':
             if (!executing_eight_shape_) {
                 RCLCPP_INFO(this->get_logger(), "8: Starting 8-shape pattern");
-                startEightShapePattern();
+                StartEightShapePattern();
             } else {
                 RCLCPP_INFO(this->get_logger(), "8-shape pattern already executing");
             }
             return;
         case 27: // ESC key
             RCLCPP_INFO(this->get_logger(), "ESC: Exit teleop mode");
-            current_command_.exit_teleop = true;
-            sendExitCommand();
+            current_command_.command = "exit_teleop";
+            this->SendExitCommand();
             return;
         default:
             // Unknown key, don't send command
             return;
     }
     
-    sendTeleopCommand();
+    this->SendTeleopCommand();
 }
 
-void TeleopNode::sendTeleopCommand() {
+void TeleopNode::SendTeleopCommand() {
     teleop_pub_->publish(current_command_);
 }
 
-void TeleopNode::sendExitCommand() {
-    current_command_.exit_teleop = true;
+void TeleopNode::SendExitCommand() {
+    current_command_.command = "exit_teleop";
     teleop_pub_->publish(current_command_);
     teleop_active_ = false;
     
@@ -201,7 +185,7 @@ void TeleopNode::sendExitCommand() {
     }
 }
 
-bool TeleopNode::initializeTerminal() {
+bool TeleopNode::InitializeTerminal() {
     if (tcgetattr(STDIN_FILENO, &original_termios_) == -1) {
         RCLCPP_ERROR(this->get_logger(), "Failed to get terminal attributes");
         return false;
@@ -227,7 +211,7 @@ bool TeleopNode::initializeTerminal() {
     return true;
 }
 
-void TeleopNode::cleanupTerminal() {
+void TeleopNode::CleanupTerminal() {
     if (terminal_configured_) {
         tcsetattr(STDIN_FILENO, TCSANOW, &original_termios_);
         terminal_configured_ = false;
@@ -235,7 +219,7 @@ void TeleopNode::cleanupTerminal() {
     }
 }
 
-bool TeleopNode::kbhit() {
+bool TeleopNode::Kbhit() {
     fd_set readfds;
     struct timeval timeout;
     
@@ -248,14 +232,14 @@ bool TeleopNode::kbhit() {
     return select(STDIN_FILENO + 1, &readfds, nullptr, nullptr, &timeout) > 0;
 }
 
-char TeleopNode::getch() {
-    if (kbhit()) {
+char TeleopNode::Getch() {
+    if (Kbhit()) {
         return getchar();
     }
     return 0;
 }
 
-void TeleopNode::printInstructions() {
+void TeleopNode::PrintInstructions() {
     std::cout << "\n=== TELEOP CONTROL ACTIVE ===\n";
     std::cout << "W/S: Move Forward/Backward\n";
     std::cout << "A/D: Move Left/Right\n"; 
@@ -269,7 +253,7 @@ void TeleopNode::printInstructions() {
     std::cout << "=============================\n\n";
 }
 
-void TeleopNode::startEightShapePattern() {
+void TeleopNode::StartEightShapePattern() {
     if (executing_eight_shape_) {
         return;
     }
@@ -281,13 +265,13 @@ void TeleopNode::startEightShapePattern() {
     // Create timer for 8-shape execution (20Hz update rate)
     eight_shape_timer_ = this->create_wall_timer(
         50ms, 
-        std::bind(&TeleopNode::executeEightShapeStep, this)
+        std::bind(&TeleopNode::ExecuteEightShapeStep, this)
     );
     
     RCLCPP_INFO(this->get_logger(), "8-shape pattern started");
 }
 
-void TeleopNode::executeEightShapeStep() {
+void TeleopNode::ExecuteEightShapeStep() {
     if (!executing_eight_shape_) {
         return;
     }
@@ -302,16 +286,9 @@ void TeleopNode::executeEightShapeStep() {
     
     if (t >= 1.0) {
         // Pattern complete, return to original position and stop
-        current_command_.forward = 0.0f;
-        current_command_.right = 0.0f;
-        current_command_.up = 0.0f;
-        current_command_.yaw_rate = 0.0f;
-        current_command_.hold_position = true;
-        current_command_.exit_teleop = false;
-        current_command_.takeoff = false;
-        current_command_.land = false;
+        current_command_.command = "hold_position";
         
-        sendTeleopCommand();
+        SendTeleopCommand();
         
         // Clean up timer and reset state
         if (eight_shape_timer_) {
@@ -335,18 +312,17 @@ void TeleopNode::executeEightShapeStep() {
     double vel_forward = config::EIGHT_SHAPE_SPEED * 2.0 * pi * cos(angle1);
     double vel_right = config::EIGHT_SHAPE_SPEED * 2.0 * pi * cos(angle2);
     
-    // Normalize velocities to [-1, 1] range for teleop command
-    const double max_vel = config::EIGHT_SHAPE_SPEED * 2.0 * pi;
-    current_command_.forward = static_cast<float>(vel_forward / max_vel);
-    current_command_.right = static_cast<float>(vel_right / max_vel);
-    current_command_.up = 0.0f;
-    current_command_.yaw_rate = 0.0f;
-    current_command_.hold_position = false;
-    current_command_.exit_teleop = false;
-    current_command_.takeoff = false;
-    current_command_.land = false;
+    // Convert to discrete commands based on dominant velocity
+    const double threshold = 0.1;
+    if (std::abs(vel_forward) > std::abs(vel_right) && std::abs(vel_forward) > threshold) {
+        current_command_.command = (vel_forward > 0) ? "forward" : "backward";
+    } else if (std::abs(vel_right) > threshold) {
+        current_command_.command = (vel_right > 0) ? "right" : "left";
+    } else {
+        current_command_.command = "hold_position";
+    }
     
-    sendTeleopCommand();
+    SendTeleopCommand();
 }
 
 } // namespace drone_controller

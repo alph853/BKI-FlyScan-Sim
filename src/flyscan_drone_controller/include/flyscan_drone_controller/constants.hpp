@@ -39,6 +39,8 @@ namespace config {
     constexpr const float TAKEOFF_ALTITUDE = -1.5f;  // NED frame (negative is up)
     constexpr const float POSITION_STEP = 0.5f;      // meters per step
     constexpr const float YAW_STEP = 15.0f;          // degrees per step
+
+    constexpr const float EIGHT_SHAPE_SPEED = 0.5f; // m/s for 8-shape pattern
     
 } // namespace config
 

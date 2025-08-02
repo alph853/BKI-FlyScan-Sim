@@ -36,11 +36,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/NodeInfo.msg"
   "msg/NodeHeartbeat.msg"
 
-  "msg/OccupancyMap.msg"
-  "msg/SemanticMap.msg"
-  "msg/ExplorationMap.msg"
-  "msg/Hypermap.msg"
-  "msg/Odometry.msg"
   "msg/TeleopCommand.msg"
   "msg/BoundingBox.msg"
   "msg/Detection.msg"
@@ -51,7 +46,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/UnregisterNode.srv"
   "srv/RequestRecovery.srv"
 
-  "srv/QueryMap.srv"
   "srv/SetControlMode.srv"
 
   DEPENDENCIES std_msgs geometry_msgs nav_msgs sensor_msgs builtin_interfaces

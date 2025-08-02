@@ -301,7 +301,7 @@ OperationStatus PX4Controller::EnterTeleopMode() {
     
     // Enter offboard mode for teleop control
     RCLCPP_INFO(this->get_logger(), "Entering offboard mode for teleop control...");
-    OperationStatus offboard_status = StartOffboardMode(5000);
+    OperationStatus offboard_status = StartOffboardMode();
     if (offboard_status != OperationStatus::kOK) {
         RCLCPP_ERROR(this->get_logger(), "Failed to enter offboard mode - TELEOP mode activation failed");
         return offboard_status;
@@ -383,19 +383,21 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
     if (current_mode_ != ControlMode::kTeleop) {
         return;
     }
+
+    RCLCPP_INFO(this->get_logger(), "Received TeleopCommand: %s", msg->command.c_str());
     
     {
         std::lock_guard<std::mutex> lock(teleop_command_mutex_);
         current_teleop_command_ = *msg;
     }
 
-    if (msg->exit_teleop) {
+    if (msg->command == "exit_teleop") {
         RCLCPP_INFO(this->get_logger(), "Received exit teleop command");
         SwitchToMode(ControlMode::kManual);
         return;
     }
 
-    if (msg->takeoff) {
+    if (msg->command == "takeoff") {
         RCLCPP_INFO(this->get_logger(), "Received takeoff command - going to NED (0,0,-1.5)");
         std::lock_guard<std::mutex> lock(position_setpoint_mutex_);
         current_position_setpoint_.north_m = 0.0f;
@@ -405,8 +407,7 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
         return;
     }
     
-    // Handle land command
-    if (msg->land) {
+    if (msg->command == "land") {
         RCLCPP_INFO(this->get_logger(), "Received land command - going to NED (0,0,0)");
         std::lock_guard<std::mutex> lock(position_setpoint_mutex_);
         current_position_setpoint_.north_m = 0.0f;
@@ -416,36 +417,42 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
         return;
     }
 
-    // Update position setpoint based on teleop command
     std::lock_guard<std::mutex> pos_lock(position_setpoint_mutex_);
     
-    if (msg->hold_position) {
+    if (msg->command == "hold_position" || msg->command == "stop") {
         // Hold current position - no changes to setpoint
         RCLCPP_INFO(this->get_logger(), "Holding current position");
     } else {
         // Apply movement commands (step-based movement)
         namespace config = flyscan::drone_controller::constants::config;
-        if (msg->forward != 0.0f) {
-            current_position_setpoint_.north_m += msg->forward * config::POSITION_STEP;
-        }
-        if (msg->right != 0.0f) {
-            current_position_setpoint_.east_m += msg->right * config::POSITION_STEP;
-        }
-        if (msg->up != 0.0f) {
-            current_position_setpoint_.down_m -= msg->up * config::POSITION_STEP;
-        }
-        if (msg->yaw_rate != 0.0f) {
-            current_position_setpoint_.yaw_deg += msg->yaw_rate * config::YAW_STEP;
+        
+        if (msg->command == "forward") {
+            current_position_setpoint_.north_m += config::POSITION_STEP;
+        } else if (msg->command == "backward") {
+            current_position_setpoint_.north_m -= config::POSITION_STEP;
+        } else if (msg->command == "right") {
+            current_position_setpoint_.east_m += config::POSITION_STEP;
+        } else if (msg->command == "left") {
+            current_position_setpoint_.east_m -= config::POSITION_STEP;
+        } else if (msg->command == "up") {
+            current_position_setpoint_.down_m -= config::POSITION_STEP;
+        } else if (msg->command == "down") {
+            current_position_setpoint_.down_m += config::POSITION_STEP;
+        } else if (msg->command == "yaw_right") {
+            current_position_setpoint_.yaw_deg += config::YAW_STEP;
             // Normalize yaw to [-180, 180]
             while (current_position_setpoint_.yaw_deg > 180.0f) {
                 current_position_setpoint_.yaw_deg -= 360.0f;
             }
+        } else if (msg->command == "yaw_left") {
+            current_position_setpoint_.yaw_deg -= config::YAW_STEP;
+            // Normalize yaw to [-180, 180]
             while (current_position_setpoint_.yaw_deg < -180.0f) {
                 current_position_setpoint_.yaw_deg += 360.0f;
             }
         }
 
-        RCLCPP_DEBUG(this->get_logger(), "Updated teleop setpoint: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
+        RCLCPP_INFO(this->get_logger(), "Updated teleop setpoint: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
                     current_position_setpoint_.north_m, current_position_setpoint_.east_m, 
                     current_position_setpoint_.down_m, current_position_setpoint_.yaw_deg);
     }
