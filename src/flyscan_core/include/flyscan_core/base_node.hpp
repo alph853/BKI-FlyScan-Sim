@@ -16,23 +16,31 @@
 #include <string>
 #include <vector>
 
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "lifecycle_msgs/msg/transition.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
+
+#include "flyscan_interfaces/msg/node_heartbeat.hpp"
+#include "flyscan_interfaces/srv/register_node.hpp"
+#include "flyscan_interfaces/srv/unregister_node.hpp"
+#include "flyscan_interfaces/srv/request_recovery.hpp"
+
 #include "flyscan_common/enums.hpp"
-#include "flyscan_common/types.hpp"
 
 namespace flyscan {
 namespace core {
 
-using flyscan::common::core_types::LifecycleCallbackReturn;
-using flyscan::common::core_types::LifecycleState;
-using flyscan::common::core_types::LifecycleStateMsg;
-using flyscan::common::core_types::LifecycleTransition;
-using flyscan::common::core_types::NodeHeartbeatMsg;
-using flyscan::common::core_types::RegisterNodeSrv;
-using flyscan::common::core_types::UnregisterNodeSrv;
-using flyscan::common::core_types::RequestRecoverySrv;
-
-using flyscan::common::OperationStatus;
-using flyscan::common::NodeType;
+// Type aliases
+using LifecycleCallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+using LifecycleState = rclcpp_lifecycle::State;
+using LifecycleStateMsg = lifecycle_msgs::msg::State;
+using OperationStatus = flyscan::common::OperationStatus;
+using NodeType = flyscan::common::NodeType;
+using NodeHeartbeatMsg = flyscan_interfaces::msg::NodeHeartbeat;
+using RegisterNodeSrv = flyscan_interfaces::srv::RegisterNode;
+using UnregisterNodeSrv = flyscan_interfaces::srv::UnregisterNode;
+using RequestRecoverySrv = flyscan_interfaces::srv::RequestRecovery;
 
 /**
  * @brief Base class for autonomous UAV nodes with lifecycle and bond-based monitoring
@@ -139,18 +147,20 @@ protected:
      */
     virtual OperationStatus HandleError();
 
-    NodeType                 m_node_type;
-    std::vector<std::string> m_capabilities;
-    std::string              m_node_id;
-    std::string              m_heartbeat_topic;
+    NodeType                 node_type_;
+    std::vector<std::string> capabilities_;
+    std::string              node_id_;
+    std::string              heartbeat_topic_;
 
-    rclcpp::Client<RegisterNodeSrv>::SharedPtr      m_register_client;
-    rclcpp::Client<UnregisterNodeSrv>::SharedPtr    m_unregister_client;
+    rclcpp::Client<RegisterNodeSrv>::SharedPtr      register_client_;
+    rclcpp::Client<UnregisterNodeSrv>::SharedPtr    unregister_client_;
 
-    rclcpp::Publisher<NodeHeartbeatMsg>::SharedPtr  m_heartbeat_pub;
-    rclcpp::TimerBase::SharedPtr                    m_heartbeat_timer;
+    rclcpp::Publisher<NodeHeartbeatMsg>::SharedPtr  heartbeat_pub_;
+    rclcpp::TimerBase::SharedPtr                    heartbeat_timer_;
 
-    rclcpp::Service<RequestRecoverySrv>::SharedPtr  m_request_recovery_service;
+    rclcpp::Service<RequestRecoverySrv>::SharedPtr  request_recovery_service_;
+
+    
 
 private:
     /**

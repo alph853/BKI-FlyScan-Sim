@@ -14,7 +14,6 @@
 
 namespace flyscan {
 namespace core {
-namespace constants {
 
 namespace srv {
     constexpr const char* REGISTER_NODE     = "/life_monitor/register_node";
@@ -38,6 +37,5 @@ namespace timer {
         = rclcpp::Duration::from_seconds(3.0);
 }
 
-} // namespace constants
 } // namespace core
 } // namespace flyscan

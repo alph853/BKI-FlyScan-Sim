@@ -15,8 +15,11 @@ class VisualizationNode(Node):
         super().__init__('visualization_node')
         
         # Declare and get parameters
-        self.declare_parameter('use_sim_time', False)
-        self.declare_parameter('max_path_length', 1000)
+        if not self.has_parameter('use_sim_time'):
+            self.declare_parameter('use_sim_time', False)
+        
+        if not self.has_parameter('max_path_length'):
+            self.declare_parameter('max_path_length', 1000)
         
         self.max_path_length = self.get_parameter('max_path_length').get_parameter_value().integer_value
         

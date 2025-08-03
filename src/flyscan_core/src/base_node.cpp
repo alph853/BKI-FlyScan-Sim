@@ -11,8 +11,8 @@
 
 
 #include "flyscan_core/base_node.hpp"
-#include "flyscan_common/request_util.hpp"
 #include "flyscan_core/constants.hpp"
+#include <rclcpp/qos.hpp>
 
 namespace flyscan {
 namespace core {
@@ -22,36 +22,45 @@ BaseNode::BaseNode(const rclcpp::NodeOptions & options,
                    const NodeType& node_type,
                    const std::vector<std::string>& capabilities)
     : LifecycleNode(node_name, options)
-    , m_node_type(node_type)
-    , m_capabilities(capabilities)
+    , node_type_(node_type)
+    , capabilities_(capabilities)
 
-    , m_node_id("")
-    , m_heartbeat_topic("")
-    , m_register_client(nullptr)
-    , m_unregister_client(nullptr)
+    , node_id_("")
+    , heartbeat_topic_("")
+    , register_client_(nullptr)
+    , unregister_client_(nullptr)
 
-    , m_heartbeat_pub(nullptr)
-    , m_heartbeat_timer(nullptr)
-    , m_request_recovery_service(nullptr)
+    , heartbeat_pub_(nullptr)
+    , heartbeat_timer_(nullptr)
+    , request_recovery_service_(nullptr)
 {
     std::stringstream ss;
     ss << "[";
-    for (const auto& cap : m_capabilities)
+    for (const auto& cap : capabilities_)
         ss << cap << ", ";
     ss << "]"; 
 
     RCLCPP_INFO(this->get_logger(), "BaseNode initializing with name: %s, type: %s, capabilities: %s",
-                node_name.c_str(), NodeTypeToString(m_node_type).c_str(), ss.str().c_str());
+                node_name.c_str(), NodeTypeToString(node_type_).c_str(), ss.str().c_str());
 }
 
 BaseNode::~BaseNode()
 {
-    RCLCPP_INFO(this->get_logger(), "Node shutting down");
+    RCLCPP_INFO(this->get_logger(), "BaseNode destructor called");
     
-    if (UnregisterFromLifeMonitor() != OperationStatus::kOK)
-        RCLCPP_WARN(this->get_logger(), "Failed to unregister from LifeMonitor");
-    else
-        RCLCPP_INFO(this->get_logger(), "Successfully unregistered from LifeMonitor");
+    // Stop timers to prevent further callbacks during shutdown
+    if (heartbeat_timer_) {
+        heartbeat_timer_->cancel();
+        heartbeat_timer_.reset();
+    }
+    
+    // Reset publishers and clients
+    heartbeat_pub_.reset();
+    register_client_.reset();
+    unregister_client_.reset();
+    request_recovery_service_.reset();
+    
+    RCLCPP_INFO(this->get_logger(), "BaseNode shutdown complete");
 }
 
 LifecycleCallbackReturn BaseNode::on_configure(const LifecycleState& state)
@@ -62,15 +71,15 @@ LifecycleCallbackReturn BaseNode::on_configure(const LifecycleState& state)
     * Service Consumers
     */
     using namespace std::placeholders;
-    namespace srv = flyscan::core::constants::srv;
-
-    m_register_client   = this->create_client<RegisterNodeSrv>(srv::REGISTER_NODE);
-    m_unregister_client = this->create_client<UnregisterNodeSrv>(srv::UNREGISTER_NODE);
+    register_client_   = this->create_client<RegisterNodeSrv>(
+        srv::REGISTER_NODE, rclcpp::ServicesQoS());
+    unregister_client_ = this->create_client<UnregisterNodeSrv>(
+        srv::UNREGISTER_NODE, rclcpp::ServicesQoS());
 
     /*
     * Service Providers
     */
-    m_request_recovery_service = this->create_service<RequestRecoverySrv>(
+    request_recovery_service_ = this->create_service<RequestRecoverySrv>(
         srv::REQUEST_RECOVERY,
         std::bind(&BaseNode::HandleRecoveryRequest, this, _1, _2));
     
@@ -81,9 +90,6 @@ LifecycleCallbackReturn BaseNode::on_configure(const LifecycleState& state)
         RCLCPP_ERROR(this->get_logger(), "Failed to register with LifeMonitor");
         return LifecycleCallbackReturn::FAILURE;
     }
-
-    // Heartbeat setup moved to SetupHeartbeatPublishing() 
-    // which is called after successful registration
 
     /*
     ******** BaseNode Initialization Done ********
@@ -126,10 +132,6 @@ LifecycleCallbackReturn BaseNode::on_deactivate(const LifecycleState& state)
         return LifecycleCallbackReturn::SUCCESS;
     } 
     
-    if (status == OperationStatus::kServiceNA) {
-        // TODO: Implement service not available handling
-    }
-    
     RCLCPP_ERROR(this->get_logger(), "Deactivation failed: %s", OperationStatusToString(status).c_str());
     return LifecycleCallbackReturn::FAILURE;
 }
@@ -139,9 +141,9 @@ LifecycleCallbackReturn BaseNode::on_cleanup(const LifecycleState& state)
     RCLCPP_INFO(this->get_logger(), "Node %s in state %s", this->get_name(), state.label().c_str());
     RCLCPP_INFO(this->get_logger(), "Cleaning up...");
     
-    m_register_client.reset();
-    m_unregister_client.reset();
-    m_request_recovery_service.reset();
+    register_client_.reset();
+    unregister_client_.reset();
+    request_recovery_service_.reset();
     
     if (HandleCleanup() == OperationStatus::kOK) {
         RCLCPP_INFO(this->get_logger(), "Cleanup successful");
@@ -157,6 +159,18 @@ LifecycleCallbackReturn BaseNode::on_shutdown(const LifecycleState& state)
 {
     RCLCPP_INFO(this->get_logger(), "Node %s in state %s", this->get_name(), state.label().c_str());
     RCLCPP_INFO(this->get_logger(), "Shutting down...");
+    
+    auto operation_status = this->UnregisterFromLifeMonitor();
+    if (operation_status != OperationStatus::kOK) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to unregister from LifeMonitor: %s", 
+                     OperationStatusToString(operation_status).c_str());
+    } else {
+        RCLCPP_INFO(this->get_logger(), "Unregister from LifeMonitor successfully");
+    }
+    
+    if (heartbeat_timer_) {
+        heartbeat_timer_->cancel();
+    }
     
     if (HandleShutdown() == OperationStatus::kOK) {
         RCLCPP_INFO(this->get_logger(), "Shutdown successful");
@@ -220,112 +234,114 @@ OperationStatus BaseNode::HandleError()
 
 OperationStatus BaseNode::RegisterWithLifeMonitor()
 {
-    RCLCPP_INFO(this->get_logger(), "Registering with LifeMonitor (async)");
+    RCLCPP_INFO(this->get_logger(), "Registering with LifeMonitor");
+
+    using namespace std::placeholders;
 
     auto request = std::make_shared<RegisterNodeSrv::Request>();
     request->node_name         = this->get_name();
-    request->node_type         = static_cast<uint8_t>(m_node_type);
+    request->node_type         = static_cast<uint8_t>(node_type_);
     request->node_namespace    = this->get_namespace();
-    request->capabilities      = m_capabilities;
+    request->capabilities      = capabilities_;
     
-    if (!m_register_client->wait_for_service(std::chrono::seconds(5))) {
+    if (!register_client_->wait_for_service(std::chrono::seconds(5))) {
         RCLCPP_ERROR(this->get_logger(), "Registration service not available");
         return OperationStatus::kServiceNA;
     }
 
-    // Use async call to avoid blocking
-    auto future = m_register_client->async_send_request(request,
-        [this](rclcpp::Client<RegisterNodeSrv>::SharedFuture future) {
-            try {
-                auto response = future.get();
-                if (response->success) {
-                    m_node_id = response->node_id;
-                    m_heartbeat_topic = response->heartbeat_topic;
-                    RCLCPP_INFO(this->get_logger(), "Node %s registered: ID = %s, Topic = %s",
-                                this->get_name(), m_node_id.c_str(), m_heartbeat_topic.c_str());
-                    
-                    // Now that we're registered, we can set up heartbeat publishing
-                    SetupHeartbeatPublishing();
-                } else {
-                    RCLCPP_ERROR(this->get_logger(), "Registration failed: %s", response->message.c_str());
-                }
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Registration service call failed: %s", e.what());
+    // Send async request with callback
+    auto response_callback = [this](rclcpp::Client<RegisterNodeSrv>::SharedFuture future) {
+        try {
+            auto response = future.get();
+            if (response->success) {
+                node_id_ = response->node_id;
+                heartbeat_topic_ = response->heartbeat_topic;
+                RCLCPP_INFO(this->get_logger(), "Node %s registered successfully: ID = %s, Topic = %s",
+                            this->get_name(), node_id_.c_str(), heartbeat_topic_.c_str());
+                SetupHeartbeatPublishing();
+            } else {
+                RCLCPP_ERROR(this->get_logger(), "Registration failed: %s", response->message.c_str());
+                // Trigger error state transition
+                this->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ON_CONFIGURE_ERROR);
             }
-        });
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Registration service call failed: %s", e.what());
+            // Trigger error state transition
+            this->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ON_CONFIGURE_ERROR);
+        }
+    };
 
+    register_client_->async_send_request(request, response_callback);
+    
+    RCLCPP_INFO(this->get_logger(), "Registration request sent, continuing with configuration");
     return OperationStatus::kOK;
 }
 
 void BaseNode::SetupHeartbeatPublishing()
 {
-    namespace qos   = flyscan::core::constants::qos;
-    namespace timer = flyscan::core::constants::timer;
-
-    if (m_heartbeat_topic.empty()) {
+    if (heartbeat_topic_.empty()) {
         RCLCPP_ERROR(this->get_logger(), "Cannot setup heartbeat - topic is empty");
         return;
     }
 
-    m_heartbeat_pub = this->create_publisher<NodeHeartbeatMsg>(m_heartbeat_topic, qos::PUBLISH_QOS);
-    m_heartbeat_timer = this->create_wall_timer(timer::HEARTBEAT_PUB_PERIOD, 
+    heartbeat_pub_ = this->create_publisher<NodeHeartbeatMsg>(heartbeat_topic_, rclcpp::SensorDataQoS());
+    heartbeat_timer_ = this->create_wall_timer(timer::HEARTBEAT_PUB_PERIOD, 
         [this]() {
             if (this->get_current_state().id() != LifecycleStateMsg::PRIMARY_STATE_ACTIVE) {
                 RCLCPP_DEBUG(this->get_logger(), "Node %s is not active, skipping heartbeat", this->get_name());
                 return;
             }
 
-            if (m_node_id.empty()) {
+            if (node_id_.empty()) {
                 RCLCPP_DEBUG(this->get_logger(), "Node ID not set, skipping heartbeat");
                 return;
             }
 
             auto msg = std::make_shared<NodeHeartbeatMsg>();
-            msg->node_id = m_node_id;
+            msg->node_id = node_id_;
             msg->stamp   = this->now();
-            m_heartbeat_pub->publish(*msg);
+            heartbeat_pub_->publish(*msg);
         });
     
-    RCLCPP_INFO(this->get_logger(), "Heartbeat publishing setup complete for topic: %s", m_heartbeat_topic.c_str());
+    RCLCPP_INFO(this->get_logger(), "Heartbeat publishing setup complete for topic: %s", heartbeat_topic_.c_str());
 }
 
 OperationStatus BaseNode::UnregisterFromLifeMonitor()
 {
-    RCLCPP_INFO(this->get_logger(), "Unregistering from LifeMonitor (async)");
+    RCLCPP_INFO(this->get_logger(), "Unregistering from LifeMonitor");
     
-    if (m_node_id.empty()) {
-        RCLCPP_WARN(this->get_logger(), "Not registered");
-        return OperationStatus::kNotInitialized;
+    if (!unregister_client_->wait_for_service(std::chrono::seconds(5))) {
+        RCLCPP_ERROR(this->get_logger(), "Registration service not available");
+        return OperationStatus::kServiceNA;
     }
     
     auto request = std::make_shared<UnregisterNodeSrv::Request>();
-    request->node_id = m_node_id;
+    request->node_id = node_id_;
     request->node_name = this->get_name();
     request->node_namespace = this->get_namespace();
-    
-    if (!m_unregister_client->wait_for_service(std::chrono::seconds(2))) {
-        RCLCPP_WARN(this->get_logger(), "Unregister service not available");
-        return OperationStatus::kServiceNA;
+
+    auto response_callback = [this](rclcpp::Client<UnregisterNodeSrv>::SharedFuture future) {
+        try {
+            auto response = future.get();
+            if (response->success) {
+                RCLCPP_INFO(this->get_logger(), "Node %s unregistered successfully", this->get_name());
+            } else {
+                RCLCPP_WARN(this->get_logger(), "Unregistration failed: %s", response->message.c_str());
+            }
+        } catch (const std::exception& e) {
+            RCLCPP_WARN(this->get_logger(), "Unregister service call failed: %s", e.what());
+        }
+    };
+
+    try {
+        unregister_client_->async_send_request(request, response_callback);
+    } catch (const std::exception& e) {
+        RCLCPP_WARN(this->get_logger(), "Failed to send unregister request: %s", e.what());
     }
 
-    // Use async call to avoid blocking
-    auto future = m_unregister_client->async_send_request(request,
-        [this](rclcpp::Client<UnregisterNodeSrv>::SharedFuture future) {
-            try {
-                auto response = future.get();
-                if (response->success) {
-                    RCLCPP_INFO(this->get_logger(), "Node %s unregistered successfully", this->get_name());
-                } else {
-                    RCLCPP_ERROR(this->get_logger(), "Unregistration failed: %s", response->message.c_str());
-                }
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Unregister service call failed: %s", e.what());
-            }
-        });
-
-    // Clear local state immediately
-    m_node_id.clear();
-    m_heartbeat_topic.clear();
+    // Clear local state immediately since we're shutting down
+    node_id_.clear();
+    heartbeat_topic_.clear();
 
     return OperationStatus::kOK;
 }

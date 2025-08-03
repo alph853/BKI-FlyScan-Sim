@@ -13,21 +13,47 @@
 #include <thread>
 #include <future>
 #include <nlohmann/json.hpp>
+#include <curl/curl.h>
 
 #include "flyscan_perception/semantic_perception.hpp"
+#include "flyscan_common/sigint_handler.hpp"
 
 namespace flyscan {
 namespace perception {
 
-SemanticPerception::SemanticPerception()
-    : BaseNode(rclcpp::NodeOptions(), "semantic_perception", flyscan::common::NodeType::kPerception, {"object_detection", "yolo_inference"})
+SemanticPerception::SemanticPerception(const rclcpp::NodeOptions& options,
+                                       const std::string& node_name,
+                                       const flyscan::common::NodeType& node_type,
+                                       const std::vector<std::string>& capabilities)
+    : BaseNode(options, node_name, node_type, capabilities)
     , frame_count_(0)
-    , inference_frame_skip_(3)
     , frame_skip_counter_(0)
     , yolo_initialized_(false)
     , class_names_({"Barcode", "QR"})
 {
-    RCLCPP_INFO(this->get_logger(), "SemanticPerception initializing");
+    RCLCPP_INFO(this->get_logger(), "Initializing Semantic Perception Node: %s", node_name.c_str());
+    
+    // Declare ROS parameters with default values
+    if (!this->has_parameter("inference_frame_skip")) {
+        this->declare_parameter("inference_frame_skip", 3);
+    }
+    if (!this->has_parameter("confidence_threshold")) {
+        this->declare_parameter("confidence_threshold", 0.5);
+    }
+    if (!this->has_parameter("nms_threshold")) {
+        this->declare_parameter("nms_threshold", 0.4);
+    }
+    if (!this->has_parameter("camera_frame")) {
+        this->declare_parameter("camera_frame", "camera_frame");
+    }
+    if (!this->has_parameter("gpu_enabled")) {
+        this->declare_parameter("gpu_enabled", false);
+    }
+    if (!this->has_parameter("model_path")) {
+        this->declare_parameter("model_path", "src/flyscan_perception/best.onnx");
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Starting with parameter-based configuration");
 }
 
 SemanticPerception::~SemanticPerception()
@@ -35,43 +61,124 @@ SemanticPerception::~SemanticPerception()
     RCLCPP_INFO(this->get_logger(), "SemanticPerception shutting down");
 }
 
+// ============================================================================
+// Lifecycle Management Implementation
+// ============================================================================
+
 flyscan::common::OperationStatus SemanticPerception::HandleConfigure()
 {
-    RCLCPP_INFO(this->get_logger(), "Configuring SemanticPerception");
+    RCLCPP_INFO(this->get_logger(), "Configuring Semantic Perception...");
     
-    video_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
-        "/camera/image_raw", 
-        rclcpp::SensorDataQoS(),
-        std::bind(&SemanticPerception::VideoCallback, this, std::placeholders::_1)
-    );
+    using namespace std::placeholders;
     
-    detection_publisher_ = this->create_publisher<flyscan_interfaces::msg::DetectionArray>(
-        "detections", 10);
+    try {
+        // Cache ROS parameters
+        inference_frame_skip_ = this->get_parameter("inference_frame_skip").as_int();
+        confidence_threshold_ = this->get_parameter("confidence_threshold").as_double();
+        nms_threshold_  = this->get_parameter("nms_threshold").as_double();
+        camera_frame_   = this->get_parameter("camera_frame").as_string();
+        gpu_enabled_    = this->get_parameter("gpu_enabled").as_bool();
+
+        std::string model_path = this->get_parameter("model_path").as_string();
+
+        RCLCPP_INFO(this->get_logger(), "Cached parameters: frame_skip=%d, conf_thresh=%.2f, nms_thresh=%.2f, model=%s",
+                   inference_frame_skip_, confidence_threshold_, nms_threshold_, model_path.c_str());
+
+        // Create subscribers with appropriate QoS
+        auto qos = rclcpp::SensorDataQoS();
+
+        video_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/camera/image_raw", qos,
+            std::bind(&SemanticPerception::VideoCallback, this, _1)
+        );
     
-    std::string model_path = "src/flyscan_perception/best.onnx";
-    if (std::filesystem::exists(model_path)) {
-        if (InitializeYoloModel(model_path)) {
-            RCLCPP_INFO(this->get_logger(), "YOLOv8 model loaded successfully: %s", model_path.c_str());
+        depth_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/camera/depth/image", qos,
+            std::bind(&SemanticPerception::DepthCallback, this, _1)
+        );
+        
+        camera_info_subscription_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+            "/camera/camera_info", qos,
+            std::bind(&SemanticPerception::CameraInfoCallback, this, _1)
+        );
+        
+        // Create publishers
+        detection_publisher_ = this->create_publisher<flyscan_interfaces::msg::DetectionArray>(
+            "detections", 10);
+        
+        qr_position_publisher_ = this->create_publisher<geometry_msgs::msg::PointStamped>(
+            "qr_positions", 10);
+
+        
+        // Initialize YOLO model
+        if (std::filesystem::exists(model_path)) {
+            if (InitializeYoloModel(model_path)) {
+                RCLCPP_INFO(this->get_logger(), "YOLOv8 model loaded successfully: %s", model_path.c_str());
+            } else {
+                RCLCPP_WARN(this->get_logger(), "Failed to load YOLOv8 model: %s", model_path.c_str());
+            }
         } else {
-            RCLCPP_WARN(this->get_logger(), "Failed to load YOLOv8 model: %s", model_path.c_str());
+            RCLCPP_WARN(this->get_logger(), "YOLOv8 model not found: %s", model_path.c_str());
+            RCLCPP_INFO(this->get_logger(), "Run the conversion script to convert .pt to .onnx");
         }
-    } else {
-        RCLCPP_WARN(this->get_logger(), "YOLOv8 model not found: %s", model_path.c_str());
-        RCLCPP_INFO(this->get_logger(), "Run the conversion script to convert .pt to .onnx");
+        
+        RCLCPP_INFO(this->get_logger(), "Semantic Perception configured successfully");
+        return flyscan::common::OperationStatus::kOK;
+        
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to configure Semantic Perception: %s", e.what());
+        return flyscan::common::OperationStatus::kNotInitialized;
     }
-    
-    return flyscan::common::OperationStatus::kOK;
 }
 
 flyscan::common::OperationStatus SemanticPerception::HandleActivate()
 {
-    RCLCPP_INFO(this->get_logger(), "Activating SemanticPerception");
+    RCLCPP_INFO(this->get_logger(), "Activating Semantic Perception...");
     return flyscan::common::OperationStatus::kOK;
 }
 
 flyscan::common::OperationStatus SemanticPerception::HandleDeactivate()
 {
-    RCLCPP_INFO(this->get_logger(), "Deactivating SemanticPerception");
+    RCLCPP_INFO(this->get_logger(), "Deactivating Semantic Perception...");
+    return flyscan::common::OperationStatus::kOK;
+}
+
+flyscan::common::OperationStatus SemanticPerception::HandleCleanup()
+{
+    RCLCPP_INFO(this->get_logger(), "Cleaning up Semantic Perception...");
+
+    // Reset all components
+    video_subscription_.reset();
+    depth_subscription_.reset();
+    camera_info_subscription_.reset();
+    detection_publisher_.reset();
+    qr_position_publisher_.reset();
+
+    // Clear YOLO model
+    ort_session_.reset();
+    ort_env_.reset();
+    session_options_.reset();
+    yolo_initialized_ = false;
+    
+    RCLCPP_INFO(this->get_logger(), "Semantic Perception cleanup complete");
+    return flyscan::common::OperationStatus::kOK;
+}
+
+flyscan::common::OperationStatus SemanticPerception::HandleShutdown()
+{
+    RCLCPP_INFO(this->get_logger(), "Shutting down Semantic Perception...");
+    return HandleCleanup();
+}
+
+flyscan::common::OperationStatus SemanticPerception::HandleError()
+{
+    RCLCPP_ERROR(this->get_logger(), "Semantic Perception error state - attempting recovery...");
+
+    // Reset inference state on error
+    yolo_initialized_ = false;
+    frame_skip_counter_ = 0;
+    
+    RCLCPP_INFO(this->get_logger(), "Reset inference state for safety");
     return flyscan::common::OperationStatus::kOK;
 }
 
@@ -81,12 +188,37 @@ void SemanticPerception::VideoCallback(const sensor_msgs::msg::Image::SharedPtr 
         cv_ptr_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
         current_frame_ = cv_ptr_->image;
         frame_count_++;
-        
+
         // Run YOLO inference with frame skipping for performance
         if (yolo_initialized_) {
             if (frame_skip_counter_ == 0) {
                 last_detections_ = RunYoloInference(current_frame_);
                 PublishDetections(last_detections_);
+                
+                for (const auto& detection : last_detections_) {
+                    if ((detection.class_id == 0 || detection.class_id == 1) && !detection.decoded_data.empty()) {
+                        cv::Mat depth_image;
+                        sensor_msgs::msg::CameraInfo::SharedPtr cam_info;
+                        
+                        {
+                            std::lock_guard<std::mutex> lock(depth_mutex_);
+                            depth_image = current_depth_image_.clone();
+                        }
+                        
+                        {
+                            std::lock_guard<std::mutex> lock(camera_info_mutex_);
+                            cam_info = camera_info_;
+                        }
+
+                        if (!depth_image.empty() && cam_info) {
+                            auto qr_position = LocalizeQrPosition(detection, depth_image, *cam_info);
+                            qr_position_publisher_->publish(qr_position);
+
+                            // Send HTTP request for QR code
+                            SendQrHttpRequest(detection.decoded_data);
+                        }
+                    }
+                }
             }
             frame_skip_counter_ = (frame_skip_counter_ + 1) % inference_frame_skip_;
         }
@@ -99,7 +231,7 @@ void SemanticPerception::PublishDetections(const std::vector<Detection>& detecti
 {
     auto detection_array_msg = flyscan_interfaces::msg::DetectionArray();
     detection_array_msg.header.stamp = this->now();
-    detection_array_msg.header.frame_id = "camera";
+    detection_array_msg.header.frame_id = camera_frame_;
     detection_array_msg.frame_count = frame_count_;
     
     for (const auto& detection : detections) {
@@ -135,7 +267,12 @@ bool SemanticPerception::InitializeYoloModel(const std::string& model_path)
         session_options_->SetInterOpNumThreads(1);
         session_options_->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
         session_options_->SetExecutionMode(ExecutionMode::ORT_PARALLEL);
-        
+
+        if (gpu_enabled_) {
+            OrtCUDAProviderOptions cuda_options;
+            session_options_->AppendExecutionProvider_CUDA(cuda_options);
+        }
+
         // Create inference session
         ort_session_ = std::make_unique<Ort::Session>(*ort_env_, model_path.c_str(), *session_options_);
         
@@ -148,8 +285,7 @@ bool SemanticPerception::InitializeYoloModel(const std::string& model_path)
             RCLCPP_ERROR(this->get_logger(), "Expected 1 input, got %zu", num_input_nodes);
             return false;
         }
-        
-        // Get input and output names using newer API
+
         auto input_name = ort_session_->GetInputNameAllocated(0, allocator);
         input_names_str_.push_back(std::string(input_name.get()));
         
@@ -157,14 +293,12 @@ bool SemanticPerception::InitializeYoloModel(const std::string& model_path)
         auto input_tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
         input_shape_ = input_tensor_info.GetShape();
         
-        // Output information
         size_t num_output_nodes = ort_session_->GetOutputCount();
         for (size_t i = 0; i < num_output_nodes; i++) {
             auto output_name = ort_session_->GetOutputNameAllocated(i, allocator);
             output_names_str_.push_back(std::string(output_name.get()));
         }
         
-        // Convert string vectors to char* vectors for inference
         for (const auto& name : input_names_str_) {
             input_names_.push_back(name.c_str());
         }
@@ -198,7 +332,7 @@ std::vector<Detection> SemanticPerception::RunYoloInference(const cv::Mat& frame
         cv::Mat preprocessed = PreprocessFrame(frame);
         
         // Create input tensor
-        std::vector<int64_t> input_shape = {1, 3, 640, 640}; // YOLO input size hardcoded
+        std::vector<int64_t> input_shape = {1, 3, 640, 640};
         size_t input_tensor_size = 1 * 3 * 640 * 640;
         std::vector<float> input_tensor_values(input_tensor_size);
         
@@ -242,7 +376,7 @@ cv::Mat SemanticPerception::PreprocessFrame(const cv::Mat& frame)
     
     // Resize to model input size
     cv::resize(frame, resized, cv::Size(640, 640));
-    
+
     // Convert to float and normalize to [0, 1]
     resized.convertTo(normalized, CV_32F, 1.0 / 255.0);
     
@@ -291,7 +425,7 @@ std::vector<Detection> SemanticPerception::PostprocessOutputs(const std::vector<
         }
         
         // Filter by confidence threshold
-        if (max_confidence >= 0.5f) { // hardcoded confidence threshold
+        if (max_confidence >= confidence_threshold_) {
             // Convert to corner coordinates and scale to original image size
             float x1 = (cx - w / 2) * img_width / 640;
             float y1 = (cy - h / 2) * img_height / 640;
@@ -307,7 +441,7 @@ std::vector<Detection> SemanticPerception::PostprocessOutputs(const std::vector<
     
     // Apply Non-Maximum Suppression
     std::vector<int> indices;
-    cv::dnn::NMSBoxes(boxes, confidences, 0.5f, 0.4f, indices); // hardcoded thresholds
+    cv::dnn::NMSBoxes(boxes, confidences, confidence_threshold_, nms_threshold_, indices);
     
     // Create final detections
     for (int idx : indices) {
@@ -478,27 +612,150 @@ std::string SemanticPerception::TryDecodeVariant(const cv::Mat& img, float alpha
     return "";
 }
 
+void SemanticPerception::DepthCallback(const sensor_msgs::msg::Image::SharedPtr msg)
+{
+    try {
+        cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1);
+        
+        std::lock_guard<std::mutex> lock(depth_mutex_);
+        current_depth_image_ = depth_ptr->image.clone();
+        
+    } catch (cv_bridge::Exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Error converting depth image: %s", e.what());
+    }
+}
+
+void SemanticPerception::CameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
+{
+    std::lock_guard<std::mutex> lock(camera_info_mutex_);
+    camera_info_ = msg;
+}
+
+geometry_msgs::msg::PointStamped SemanticPerception::LocalizeQrPosition(
+    const Detection& detection,
+    const cv::Mat& depth_image,
+    const sensor_msgs::msg::CameraInfo& camera_info)
+{
+    geometry_msgs::msg::PointStamped qr_position;
+    qr_position.header.stamp = this->now();
+    qr_position.header.frame_id = camera_frame_;
+    
+    int center_x = detection.bbox.x + detection.bbox.width / 2;
+    int center_y = detection.bbox.y + detection.bbox.height / 2;
+    
+    if (center_x >= 0 && center_x < depth_image.cols && 
+        center_y >= 0 && center_y < depth_image.rows) {
+        
+        float depth = depth_image.at<float>(center_y, center_x);
+
+        if (std::isfinite(depth) && depth > 0.1 && depth < 10.0) {
+            double fx = camera_info.k[0];
+            double fy = camera_info.k[4];
+            double cx = camera_info.k[2];
+            double cy = camera_info.k[5];
+            
+            double x = (center_x - cx) * depth / fx;
+            double y = (center_y - cy) * depth / fy;
+            double z = depth;
+
+            qr_position.point.x = x;
+            qr_position.point.y = y;
+            qr_position.point.z = z;
+            
+            RCLCPP_INFO(this->get_logger(), 
+                       "QR Code '%s' localized at position (%.3f, %.3f, %.3f) meters",
+                       detection.decoded_data.c_str(), x, y, z);
+        } else {
+            RCLCPP_WARN(this->get_logger(), 
+                       "Invalid depth value %.3f for QR code at pixel (%d, %d)",
+                       depth, center_x, center_y);
+        }
+    } else {
+        RCLCPP_WARN(this->get_logger(), 
+                   "QR code center (%d, %d) is outside depth image bounds (%dx%d)",
+                   center_x, center_y, depth_image.cols, depth_image.rows);
+    }
+    
+    return qr_position;
+}
+
+size_t flyscan::perception::SemanticPerception::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
+void flyscan::perception::SemanticPerception::SendQrHttpRequest(const std::string& qr_data) {
+    CURL* curl;
+    CURLcode res;
+    std::string response_data;
+    
+    curl = curl_easy_init();
+    if (curl) {
+        // Create JSON payload
+        nlohmann::json payload;
+        payload["productCode"] = qr_data;
+        payload["droneId"] = "DRONE-05";
+        payload["location"] = "B2-03";
+        payload["scanResult"] = "success";
+        
+        std::string json_string = payload.dump();
+        
+        // Set HTTP headers
+        struct curl_slist* headers = nullptr;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        
+        // Configure curl
+        curl_easy_setopt(curl, CURLOPT_URL, "https://bki-web-api.onrender.com/api/drone-scan");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_string.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        
+        // Perform the request
+        res = curl_easy_perform(curl);
+        
+        if (res != CURLE_OK) {
+            RCLCPP_ERROR(this->get_logger(), "HTTP request failed: %s", curl_easy_strerror(res));
+        } else {
+            long response_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+            RCLCPP_INFO(this->get_logger(), "QR HTTP request sent. Response code: %ld, Data: %s", 
+                       response_code, qr_data.c_str());
+        }
+        
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+    } else {
+        RCLCPP_ERROR(this->get_logger(), "Failed to initialize curl for HTTP request");
+    }
+}
+
 } // namespace perception
 } // namespace flyscan
+
 
 
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
     
+    flyscan::perception::SemanticPerception::SharedPtr perception;
+    
     try {
-        auto semantic_perception = std::make_shared<flyscan::perception::SemanticPerception>();
-        rclcpp::executors::MultiThreadedExecutor executor;
-        executor.add_node(semantic_perception->get_node_base_interface());
+        perception = std::make_shared<flyscan::perception::SemanticPerception>();
+        flyscan::common::SetupSigintHandler(perception, "semantic_perception_main");
 
-        auto configure_result = semantic_perception->configure();
+        rclcpp::executors::MultiThreadedExecutor executor;
+        executor.add_node(perception->get_node_base_interface());
+
+        auto configure_result = perception->configure();
         if (configure_result.id() != lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE) {
             RCLCPP_ERROR(rclcpp::get_logger("semantic_perception_main"), "Failed to configure semantic_perception_main");
             return 1;
         }
 
-        // Activate the node
-        auto activate_result = semantic_perception->activate();
+        auto activate_result = perception->activate();
         if (activate_result.id() != lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
             RCLCPP_ERROR(rclcpp::get_logger("semantic_perception_main"), "Failed to activate semantic_perception_main");
             return 1;
@@ -507,10 +764,13 @@ int main(int argc, char** argv)
         executor.spin();
         
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        RCLCPP_ERROR(rclcpp::get_logger("semantic_perception_main"), "Exception in main: %s", e.what());
+        if (perception) {
+            perception->shutdown();
+        }
         return 1;
     }
     
-    rclcpp::shutdown();
+    RCLCPP_INFO(rclcpp::get_logger("semantic_perception_main"), "SemanticPerception main loop complete");
     return 0;
 }

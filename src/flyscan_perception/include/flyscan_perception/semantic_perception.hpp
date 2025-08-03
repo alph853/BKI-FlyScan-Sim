@@ -14,15 +14,17 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <geometry_msgs/msg/point_stamped.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/opencv.hpp>
 #include <onnxruntime_cxx_api.h>
 #include <memory>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include "flyscan_core/base_node.hpp"
-#include "flyscan_common/types.hpp"
 #include "flyscan_interfaces/msg/detection_array.hpp"
 
 namespace flyscan {
@@ -52,13 +54,26 @@ struct Detection {
 class SemanticPerception : public flyscan::core::BaseNode
 {
 public:
-    SemanticPerception();
+    explicit SemanticPerception(
+        const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
+        const std::string& node_name = "semantic_perception",
+        const flyscan::common::NodeType& node_type = flyscan::common::NodeType::kPerception,
+        const std::vector<std::string>& capabilities = {"object_detection", "yolo_inference", "qr_decoding"}
+    );
+    
     ~SemanticPerception();
 
 protected:
+    // ============================================================================
+    // Lifecycle Management (BaseNode overrides)
+    // ============================================================================
+    
     flyscan::common::OperationStatus HandleConfigure() override;
     flyscan::common::OperationStatus HandleActivate() override;
     flyscan::common::OperationStatus HandleDeactivate() override;
+    flyscan::common::OperationStatus HandleCleanup() override;
+    flyscan::common::OperationStatus HandleShutdown() override;
+    flyscan::common::OperationStatus HandleError() override;
 
 private:
     /**
@@ -66,6 +81,18 @@ private:
      * @param msg Shared pointer to the incoming ROS2 Image message
      */
     void VideoCallback(const sensor_msgs::msg::Image::SharedPtr msg);
+    
+    /**
+     * @brief Callback function for processing incoming depth images
+     * @param msg Shared pointer to the incoming ROS2 depth Image message
+     */
+    void DepthCallback(const sensor_msgs::msg::Image::SharedPtr msg);
+    
+    /**
+     * @brief Callback function for processing camera info
+     * @param msg Shared pointer to the incoming ROS2 CameraInfo message
+     */
+    void CameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
     
     /**
      * @brief Publish detection results to topic
@@ -116,24 +143,64 @@ private:
     
     std::string TryDecodeVariant(const cv::Mat& img, float alpha, int beta, float clahe_clip, 
                                 cv::Size clahe_grid, int angle);
-
-    // ROS2 components
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr video_subscription_;
     
-    // Video processing
+    /**
+     * @brief Localize QR code in 3D space using depth information
+     * @param detection QR detection with bounding box
+     * @param depth_image Depth image corresponding to the RGB frame
+     * @param camera_info Camera intrinsic parameters
+     * @return geometry_msgs::msg::PointStamped QR position in camera frame
+     */
+    geometry_msgs::msg::PointStamped LocalizeQrPosition(const Detection& detection,
+                                                        const cv::Mat& depth_image,
+                                                        const sensor_msgs::msg::CameraInfo& camera_info);
+    
+    /**
+     * @brief Send HTTP POST request with QR code data
+     * @param qr_data Decoded QR code string
+     */
+    void SendQrHttpRequest(const std::string& qr_data);
+    
+    /**
+     * @brief Callback for curl write operations
+     */
+    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
+
+    // ============================================================================
+    // ROS2 Publishers and Subscribers
+    // ============================================================================
+    
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr video_subscription_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_subscription_;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_subscription_;
+    
+    rclcpp::Publisher<flyscan_interfaces::msg::DetectionArray>::SharedPtr detection_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr qr_position_publisher_;
+    
+    // ============================================================================
+    // Image Processing and State Management
+    // ============================================================================
+    
     cv_bridge::CvImagePtr cv_ptr_;
     cv::Mat current_frame_;
-    int frame_count_;
+    cv::Mat current_depth_image_;
+    sensor_msgs::msg::CameraInfo::SharedPtr camera_info_;
     
-    // Performance optimization
-    int inference_frame_skip_;
+    int frame_count_;
     int frame_skip_counter_;
     std::vector<Detection> last_detections_;
     
-    // Publisher
-    rclcpp::Publisher<flyscan_interfaces::msg::DetectionArray>::SharedPtr detection_publisher_;
+    // ============================================================================
+    // Thread-Safe Data Access
+    // ============================================================================
     
-    // YOLO model components
+    std::mutex depth_mutex_;
+    std::mutex camera_info_mutex_;
+    
+    // ============================================================================
+    // YOLO Model Components
+    // ============================================================================
+    
     std::unique_ptr<Ort::Session> ort_session_;
     std::unique_ptr<Ort::Env> ort_env_;
     std::unique_ptr<Ort::SessionOptions> session_options_;
@@ -144,6 +211,16 @@ private:
     std::vector<int64_t> input_shape_;
     bool yolo_initialized_;
     std::vector<std::string> class_names_;
+    
+    // ============================================================================
+    // ROS Parameters (cached from parameter server)
+    // ============================================================================
+    
+    int inference_frame_skip_;
+    double confidence_threshold_;
+    double nms_threshold_;
+    bool gpu_enabled_;
+    std::string camera_frame_;
 };
 
 } // namespace perception

@@ -20,32 +20,31 @@
 #include <shared_mutex>
 #include <rclcpp_components/register_node_macro.hpp>
 
-#include "flyscan_common/types.hpp"
-#include "flyscan_common/enums.hpp"
-#include "flyscan_core/constants.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
 
+#include "flyscan_interfaces/msg/node_heartbeat.hpp"
+#include "flyscan_interfaces/srv/register_node.hpp"
+#include "flyscan_interfaces/srv/unregister_node.hpp"
 #include "flyscan_interfaces/srv/get_registered_nodes.hpp"
 #include "flyscan_interfaces/msg/node_info.hpp"
+
+#include "flyscan_common/enums.hpp"
+#include "flyscan_core/constants.hpp"
 
 namespace flyscan {
 namespace core  {
 
-using LifecycleCallbackReturn   = flyscan::common::core_types::LifecycleCallbackReturn;
-using LifecycleState            = flyscan::common::core_types::LifecycleState;
-using LifecycleStateMsg         = flyscan::common::core_types::LifecycleStateMsg;
-using LifecycleTransition       = flyscan::common::core_types::LifecycleTransition;
-
-using NodeHeartbeatMsg          = flyscan::common::core_types::NodeHeartbeatMsg;
-
-using RegisterNodeSrv           = flyscan::common::core_types::RegisterNodeSrv;
-using UnregisterNodeSrv         = flyscan::common::core_types::UnregisterNodeSrv;
-using RequestRecoverySrv        = flyscan::common::core_types::RequestRecoverySrv;
-
-using GetRegisteredNodesSrv     = flyscan_interfaces::srv::GetRegisteredNodes;
-using NodeInfoMsg               = flyscan_interfaces::msg::NodeInfo;
-
-using OperationStatus = flyscan::common::OperationStatus;
-using NodeType        = flyscan::common::NodeType;
+// Type aliases
+using LifecycleState = rclcpp_lifecycle::State;
+using LifecycleStateMsg = lifecycle_msgs::msg::State;
+using NodeType = flyscan::common::NodeType;
+using NodeHeartbeatMsg = flyscan_interfaces::msg::NodeHeartbeat;
+using RegisterNodeSrv = flyscan_interfaces::srv::RegisterNode;
+using UnregisterNodeSrv = flyscan_interfaces::srv::UnregisterNode;
+using GetRegisteredNodesSrv = flyscan_interfaces::srv::GetRegisteredNodes;
+using NodeInfoMsg = flyscan_interfaces::msg::NodeInfo;
 
 /**
  * @brief Structure to hold registered node information with bond

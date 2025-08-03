@@ -31,7 +31,7 @@ private:
     void ExecuteEightShapeStep();
 
     // ROS2 interfaces
-    rclcpp::Client<flyscan_interfaces::srv::SetControlMode>::SharedPtr mode_client_;
+    rclcpp::Client<flyscan_interfaces::srv::SetControlMode>::SharedPtr set_control_mode_client_;
     rclcpp::Publisher<flyscan_interfaces::msg::TeleopCommand>::SharedPtr teleop_pub_;
     rclcpp::TimerBase::SharedPtr input_timer_;
 

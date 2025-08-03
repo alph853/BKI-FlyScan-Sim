@@ -31,6 +31,7 @@
 
 #include <flyscan_interfaces/srv/set_control_mode.hpp>
 #include <flyscan_interfaces/msg/teleop_command.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 
 #include "flyscan_core/base_node.hpp"
 #include "flyscan_common/enums.hpp"
@@ -58,14 +59,8 @@ struct Position {
  * 
  * This class provides a centralized PX4 autopilot control system that supports multiple
  * operation modes including manual control, teleoperation, and autonomous flight.
- * The controller uses lifecycle management and provides seamless mode switching.
- * 
- * Key Features:
- * - Lifecycle state management with proper error handling
- * - Multiple control modes (Manual, Teleop, Autonomous, Mission, RTL, Land)
- * - Interactive keyboard teleoperation when in teleop mode
- * - Thread-safe operation with proper synchronization
  */
+
 class PX4Controller : public BaseNode {
 public:
     explicit PX4Controller(
@@ -74,7 +69,7 @@ public:
         const NodeType& node_type = NodeType::kController,
         const std::vector<std::string>& capabilities = {"px4_controller", "mode_switching", "teleop_control"}
     );
-    
+
     ~PX4Controller();
 
     // ============================================================================
@@ -162,6 +157,12 @@ private:
     void TeleopCommandCallback(const flyscan_interfaces::msg::TeleopCommand::SharedPtr msg);
 
     /**
+     * @brief Callback for exploration goal messages
+     * @param msg Exploration goal message
+     */
+    void ExplorationGoalCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+
+    /**
      * @brief Timer callback for continuous setpoint publishing
      */
     void SetpointTimerCallback();
@@ -183,6 +184,12 @@ private:
      * @param param2 Second parameter
      */
     void PublishVehicleCommand(uint16_t command, float param1 = 0.0f, float param2 = 0.0f);
+
+    /**
+     * @brief Send arm/disarm command to the vehicle
+     * @param arm_vehicle If true, arm the vehicle; if false, disarm
+     */
+    void SendArmDisarmCommand(bool arm_vehicle);
 
     
     // ============================================================================
@@ -218,11 +225,11 @@ private:
     OperationStatus EnterTeleopMode();
     
     /**
-     * @brief Exit current mode and return to manual
+     * @brief Enter autonomous mode for exploration
      * @return True if successful
      */
-    OperationStatus ExitCurrentMode();
-
+    OperationStatus EnterAutonomousMode();
+    
     // ============================================================================
     // ROS2 Publishers and Subscribers
     // ============================================================================
@@ -235,6 +242,7 @@ private:
     rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr vehicle_status_sub_;
     rclcpp::Subscription<px4_msgs::msg::VehicleLandDetected>::SharedPtr vehicle_land_detected_sub_;
     rclcpp::Subscription<flyscan_interfaces::msg::TeleopCommand>::SharedPtr teleop_command_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr exploration_goal_sub_;
 
     rclcpp::Service<flyscan_interfaces::srv::SetControlMode>::SharedPtr set_control_mode_service_;
     
@@ -245,63 +253,46 @@ private:
     rclcpp::TimerBase::SharedPtr inair_check_timer_;
     rclcpp::TimerBase::SharedPtr offboard_check_timer_;
     
-    // Wait state tracking
-    mutable std::atomic<bool> wait_armed_completed_{false};
-    mutable std::atomic<bool> wait_inair_completed_{false};
-    mutable std::atomic<bool> wait_offboard_completed_{false};
-    mutable bool target_armed_state_{false};
-    mutable bool target_inair_state_{false};
-    mutable uint8_t target_nav_state_{0};
-    
-    
     // ============================================================================
     // State Management
     // ============================================================================
     
     /// Exit flag for main loops
     std::atomic<bool> should_exit_{false};
-    
     std::atomic<bool> armed_{false};
-    
     std::atomic<bool> in_air_{false};
-    
     std::atomic<ControlMode> current_mode_{ControlMode::kManual};
     
     // ============================================================================
-    // Command and State Data (Thread-Safe)
+    // Thread-Safe
     // ============================================================================
     
     Position current_position_setpoint_;
-    
     flyscan_interfaces::msg::TeleopCommand current_teleop_command_;
-    
+    geometry_msgs::msg::PoseStamped current_exploration_goal_;
     std::mutex position_setpoint_mutex_;
-    
     std::mutex teleop_command_mutex_;
+    std::mutex exploration_goal_mutex_;
     
     px4_msgs::msg::VehicleLocalPosition current_position_;
-    
     px4_msgs::msg::VehicleStatus current_status_;
-    
     mutable std::mutex position_mutex_;
-    
     mutable std::mutex status_mutex_;
-    
     std::mutex mode_mutex_;
     
     // ============================================================================
-    // Configuration Constants
+    // ROS Parameters (cached from parameter server)
     // ============================================================================
     
-    uint64_t offboard_setpoint_counter_{0};
-    
-    static constexpr float  TAKEOFF_ALTITUDE = -1.5f;
-    static constexpr float  POSITION_STEP = 0.5f;
-    static constexpr float  YAW_STEP = 10.0f;
-    static constexpr int    SETPOINT_RATE_MS = 50;
+    int setpoint_rate_ms_;
+    float takeoff_altitude_;
+    float position_step_;
+    float yaw_step_;
+    ControlMode initial_control_mode_;
 };
 
 } // namespace drone_controller
 } // namespace flyscan
+
 
 RCLCPP_COMPONENTS_REGISTER_NODE(flyscan::drone_controller::PX4Controller)

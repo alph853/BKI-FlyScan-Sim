@@ -27,29 +27,31 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(CURL REQUIRED)
+find_package(onnxruntime REQUIRED)
 
 find_package(flyscan_core REQUIRED)
 find_package(flyscan_common REQUIRED)
 
 # Find ONNX Runtime
-find_path(ONNXRUNTIME_INCLUDE_DIR 
-  NAMES onnxruntime_cxx_api.h
-  PATHS /usr/include/onnxruntime /usr/local/include/onnxruntime
-)
+# find_path(ONNXRUNTIME_INCLUDE_DIR 
+#   NAMES onnxruntime_cxx_api.h
+#   PATHS /usr/include/onnxruntime /usr/local/include/onnxruntime
+# )
 
-find_library(ONNXRUNTIME_LIB
-  NAMES onnxruntime
-  PATHS /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
-)
+# find_library(ONNXRUNTIME_LIB
+#   NAMES onnxruntime
+#   PATHS /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
+# )
 
-if(ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIB)
-  message(STATUS "Found ONNX Runtime: ${ONNXRUNTIME_LIB}")
-  message(STATUS "ONNX Runtime include: ${ONNXRUNTIME_INCLUDE_DIR}")
-else()
-  message(WARNING "ONNX Runtime not found. Please install ONNX Runtime.")
-  message(WARNING "You can install it with: sudo apt-get install libonnxruntime-dev")
-  message(WARNING "Or download from: https://github.com/microsoft/onnxruntime/releases")
-endif()
+# if(ONNXRUNTIME_INCLUDE_DIR AND ONNXRUNTIME_LIB)
+#   message(STATUS "Found ONNX Runtime: ${ONNXRUNTIME_LIB}")
+#   message(STATUS "ONNX Runtime include: ${ONNXRUNTIME_INCLUDE_DIR}")
+# else()
+#   message(WARNING "ONNX Runtime not found. Please install ONNX Runtime.")
+#   message(WARNING "You can install it with: sudo apt-get install libonnxruntime-dev")
+#   message(WARNING "Or download from: https://github.com/microsoft/onnxruntime/releases")
+# endif()
 
 # ───────────────────────────
 # Build Nodes
@@ -90,13 +92,21 @@ set(semantic_perception_packages
   flyscan_common
 )
 
+set(semantic_perception_libs
+  ${cv_bridge_LIBRARIES}
+  # ${ONNXRUNTIME_LIB}
+  CURL::libcurl
+  flyscan_core::base_node
+  onnxruntime
+)
+
 add_target(semantic_perception executable
   "src/semantic_perception.cpp"
   "${semantic_perception_packages}"
-  "flyscan_core::base_node;${cv_bridge_LIBRARIES};${ONNXRUNTIME_LIB}"
+  "${semantic_perception_libs}"
 )
 
-# Include directories for semantic_perception
+
 # target_include_directories(semantic_perception PUBLIC
 #   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 #   $<INSTALL_INTERFACE:include>

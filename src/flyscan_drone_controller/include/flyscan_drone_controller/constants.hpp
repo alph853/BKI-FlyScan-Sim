@@ -12,7 +12,6 @@
 
 namespace flyscan {
 namespace drone_controller {
-namespace constants {
 
 namespace topic {
     // PX4 input topics (commands to PX4)
@@ -27,23 +26,16 @@ namespace topic {
     
     // Internal teleop communication
     constexpr const char* TELEOP_COMMAND = "/px4_controller/teleop_command";
+
+    // Exploration topics
+    constexpr const char* EXPLORATION_GOAL = "/exploration_goal";
+
 } // namespace topic
 
 namespace srv {
     constexpr const char* SET_CONTROL_MODE = "/px4_controller/set_control_mode";
 } // namespace srv
 
-namespace config {
-    // Flight control parameters
-    constexpr const int SETPOINT_RATE_MS = 50;
-    constexpr const float TAKEOFF_ALTITUDE = -1.5f;  // NED frame (negative is up)
-    constexpr const float POSITION_STEP = 0.5f;      // meters per step
-    constexpr const float YAW_STEP = 15.0f;          // degrees per step
 
-    constexpr const float EIGHT_SHAPE_SPEED = 0.5f; // m/s for 8-shape pattern
-    
-} // namespace config
-
-} // namespace constants
 } // namespace drone_controller
 } // namespace flyscan

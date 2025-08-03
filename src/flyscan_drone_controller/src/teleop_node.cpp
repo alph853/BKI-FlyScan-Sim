@@ -2,12 +2,10 @@
 #include <chrono>
 #include <signal.h>
 
-#include "flyscan_common/request_util.hpp"
 #include "flyscan_drone_controller/teleop_node.hpp"
 #include "flyscan_drone_controller/constants.hpp"
 
 using namespace std::chrono_literals;
-using flyscan::common::sync_send_request;
 
 namespace flyscan {
 namespace drone_controller {
@@ -16,10 +14,7 @@ TeleopNode::TeleopNode()
     : Node("teleop_node"), terminal_configured_(false), teleop_active_(false) {
     
     // Initialize ROS2 interfaces
-    namespace srv = flyscan::drone_controller::constants::srv;
-    namespace topic = flyscan::drone_controller::constants::topic;
-    
-    mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>(srv::SET_CONTROL_MODE);
+    set_control_mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>(srv::SET_CONTROL_MODE);
     teleop_pub_ = this->create_publisher<flyscan_interfaces::msg::TeleopCommand>(topic::TELEOP_COMMAND, 10);
 
     // Initialize terminal for keyboard input
@@ -28,32 +23,39 @@ TeleopNode::TeleopNode()
         return;
     }
 
+    // Wait for service to be available
+    if (!set_control_mode_client_->wait_for_service(5s)) {
+        RCLCPP_ERROR(this->get_logger(), "Service %s not available", set_control_mode_client_->get_service_name());
+        CleanupTerminal();
+        return;
+    }
+
     auto request = std::make_shared<flyscan_interfaces::srv::SetControlMode::Request>();
     request->mode = 1; // TELEOP mode
 
-    flyscan_interfaces::srv::SetControlMode::Response::SharedPtr response;
+    // Send async request with callback
+    auto response_callback = [this](rclcpp::Client<flyscan_interfaces::srv::SetControlMode>::SharedFuture future) {
+        try {
+            auto response = future.get();
+            if (response->success) {
+                RCLCPP_INFO(this->get_logger(), "Successfully switched to teleop mode");
+                teleop_active_ = true;
+                PrintInstructions();
+            } else {
+                RCLCPP_ERROR(this->get_logger(), "Failed to switch to teleop mode: %s", response->message.c_str());
+                CleanupTerminal();
+                rclcpp::shutdown();
+            }
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Set control mode service call failed: %s", e.what());
+            CleanupTerminal();
+            rclcpp::shutdown();
+        }
+    };
 
-    try {
-        response = sync_send_request<flyscan_interfaces::srv::SetControlMode>(this->get_node_base_interface(), mode_client_, request, 20s, 20s);
-    } catch(const std::runtime_error &e) {
-        RCLCPP_ERROR(this->get_logger(), "Service call fail in %s: %s", this->get_name(), e.what());
-        CleanupTerminal();
-        return;
-    } catch(const std::exception &e) {
-        RCLCPP_ERROR(this->get_logger(), "Exception caught in %s: %s", this->get_name(), e.what());
-        CleanupTerminal();
-        return;
-    }
-
-    if (!response->success) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to switch to teleop mode: %s", response->message.c_str());
-        CleanupTerminal();
-        return;
-    }
-
-    RCLCPP_INFO(this->get_logger(), "Successfully switched to teleop mode");
-    teleop_active_ = true;
-    PrintInstructions();
+    set_control_mode_client_->async_send_request(request, response_callback);
+    
+    RCLCPP_INFO(this->get_logger(), "Set control mode request sent, waiting for response...");
 
     input_timer_ = this->create_wall_timer(50ms, std::bind(&TeleopNode::InputLoop, this));
     
@@ -308,9 +310,9 @@ void TeleopNode::ExecuteEightShapeStep() {
     const double angle2 = 4.0 * pi * t;      // Double frequency for figure-8
     
     // Calculate velocities (derivatives of position)
-    namespace config = flyscan::drone_controller::constants::config;
-    double vel_forward = config::EIGHT_SHAPE_SPEED * 2.0 * pi * cos(angle1);
-    double vel_right = config::EIGHT_SHAPE_SPEED * 2.0 * pi * cos(angle2);
+    const double eight_shape_speed = 0.5; // m/s for 8-shape pattern (default value)
+    double vel_forward = eight_shape_speed * 2.0 * pi * cos(angle1);
+    double vel_right = eight_shape_speed * 2.0 * pi * cos(angle2);
     
     // Convert to discrete commands based on dominant velocity
     const double threshold = 0.1;

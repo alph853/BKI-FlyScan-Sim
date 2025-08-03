@@ -221,7 +221,8 @@ def generate_launch_description():
         executable='semantic_perception',
         name='semantic_perception',
         parameters=[
-            {'use_sim_time': use_sim_time}
+            {'use_sim_time': use_sim_time},
+            {"camera_frame": "x500_depth_0/camera_link/StereoOV7251"},
         ],
         output='screen',
         condition=IfCondition(semantic_perception)

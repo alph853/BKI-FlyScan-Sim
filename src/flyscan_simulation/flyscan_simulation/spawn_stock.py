@@ -37,7 +37,6 @@ def transform_pose_to_parent(child_pose_world, parent_pose_world):
 
 def get_model_uri(model_id: str) -> Optional[str]:
     """Get appropriate URI for model type"""
-    # Handle compound model types like 'shelf_big'
     if model_id.startswith('shelf_big'):
         base_type = 'shelf_big'
     else:
@@ -51,11 +50,11 @@ def get_qr_images(models_dir: str) -> List[str]:
     if not os.path.exists(qr_dir):
         # Fallback to default if QR directory doesn't exist
         return ["models/QR/qr.png"]
-    
+
     qr_files = glob.glob(os.path.join(qr_dir, "*.png")) + glob.glob(os.path.join(qr_dir, "*.jpg"))
     if not qr_files:
         return ["models/QR/qr.png"]
-    
+
     # Convert to relative paths
     return [f"models/QR/{os.path.basename(f)}" for f in qr_files]
 
@@ -267,9 +266,8 @@ def generate_xml_models(csv_file_path: str, world_file_path: str) -> None:
     # Write modified world file
     ET.indent(world_tree, space="  ", level=0)
     world_tree.write(world_file_path, encoding='utf-8', xml_declaration=True)
-    
-    print(f"Injected {len(root_models)} root models into {world_file_path}")
 
+    print(f"Injected {len(root_models)} root models into {world_file_path}")
 
 
 def main():

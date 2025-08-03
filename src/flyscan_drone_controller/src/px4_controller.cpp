@@ -16,32 +16,43 @@
 #include <cmath>
 #include <future>
 
+#include <rclcpp/logging.hpp>
 #include <rclcpp/rate.hpp>
+#include <rclcpp/utilities.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 
 #include "flyscan_drone_controller/px4_controller.hpp"
 #include "flyscan_drone_controller/constants.hpp"
+#include "flyscan_common/sigint_handler.hpp"
 
 namespace flyscan {
 namespace drone_controller {
-
-using flyscan::core::BaseNode;
 
 PX4Controller::PX4Controller(const rclcpp::NodeOptions & options,
                              const std::string& node_name,
                              const NodeType& node_type,
                              const std::vector<std::string>& capabilities
                              )
-    : BaseNode(options, node_name, node_type, capabilities) {
+    : flyscan::core::BaseNode(options, node_name, node_type, capabilities) {
 
     RCLCPP_INFO(this->get_logger(), "Initializing Advanced PX4 Controller Node: %s", node_name.c_str());
-    RCLCPP_INFO(this->get_logger(), "Starting in MANUAL mode - use set_control_mode service to switch modes");
+    
+    // Declare ROS parameters with default values
+    this->declare_parameter("setpoint_rate_ms", 50);
+    this->declare_parameter("takeoff_altitude", -1.5f);  // NED frame (negative is up)
+    this->declare_parameter("position_step", 0.5f);      // meters per step
+    this->declare_parameter("yaw_step", 15.0f);          // degrees per step
+    this->declare_parameter("eight_shape_speed", 0.5f);  // m/s for 8-shape pattern
+    this->declare_parameter("initial_control_mode", static_cast<int>(ControlMode::kManual));
+    
+    RCLCPP_INFO(this->get_logger(), "Starting with parameter-based configuration - use set_control_mode service to switch modes");
 }
 
 PX4Controller::~PX4Controller() {
     RCLCPP_INFO(this->get_logger(), "PX4Controller destructor called");
 
     should_exit_ = true;
-    StopOffboardMode();
 
     RCLCPP_INFO(this->get_logger(), "PX4Controller shutdown complete");
 }
@@ -57,57 +68,67 @@ OperationStatus PX4Controller::HandleConfigure() {
     using namespace std::chrono_literals;
 
     try {
-        // Create publishers
-        namespace topic = flyscan::drone_controller::constants::topic;
+        // Cache ROS parameters
+        setpoint_rate_ms_ = this->get_parameter("setpoint_rate_ms").as_int();
+        takeoff_altitude_ = this->get_parameter("takeoff_altitude").as_double();
+        position_step_ = this->get_parameter("position_step").as_double();
+        yaw_step_ = this->get_parameter("yaw_step").as_double();
+        initial_control_mode_ = static_cast<ControlMode>(this->get_parameter("initial_control_mode").as_int());
         
+        RCLCPP_INFO(this->get_logger(), "Cached parameters: setpoint_rate=%dms, takeoff_alt=%.2f, pos_step=%.2f, yaw_step=%.1f, initial_mode=%s",
+                   setpoint_rate_ms_, takeoff_altitude_, position_step_, yaw_step_, 
+                   ControlModeToString(initial_control_mode_).c_str());
+                   
+        auto qos = rclcpp::QoS(10).reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+ 
+        // Create publishers
         offboard_control_mode_publisher_ = this->create_publisher<px4_msgs::msg::OffboardControlMode>(
-            topic::PX4_OFFBOARD_CONTROL_MODE, rclcpp::SensorDataQoS());
+            topic::PX4_OFFBOARD_CONTROL_MODE, qos);
         trajectory_setpoint_publisher_ = this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
-            topic::PX4_TRAJECTORY_SETPOINT, rclcpp::SensorDataQoS());
+            topic::PX4_TRAJECTORY_SETPOINT, qos);
         vehicle_command_publisher_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
-            topic::PX4_VEHICLE_COMMAND, rclcpp::SensorDataQoS());
+            topic::PX4_VEHICLE_COMMAND, qos);
 
         RCLCPP_INFO(this->get_logger(), "Created PX4 command publishers");
         
         // Create subscribers
         vehicle_local_position_sub_ = this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
-            topic::PX4_VEHICLE_LOCAL_POSITION, rclcpp::SensorDataQoS(),
+            topic::PX4_VEHICLE_LOCAL_POSITION, qos,
             std::bind(&PX4Controller::VehicleLocalPositionCallback, this, _1));
 
         vehicle_status_sub_ = this->create_subscription<px4_msgs::msg::VehicleStatus>(
-            topic::PX4_VEHICLE_STATUS, rclcpp::SensorDataQoS(),
+            topic::PX4_VEHICLE_STATUS, qos,
             std::bind(&PX4Controller::VehicleStatusCallback, this, _1));
 
         vehicle_land_detected_sub_ = this->create_subscription<px4_msgs::msg::VehicleLandDetected>(
-            topic::PX4_VEHICLE_LAND_DETECTED, rclcpp::SensorDataQoS(),
+            topic::PX4_VEHICLE_LAND_DETECTED, qos,
             std::bind(&PX4Controller::VehicleLandDetectedCallback, this, _1));
         
         teleop_command_sub_ = this->create_subscription<flyscan_interfaces::msg::TeleopCommand>(
-            topic::TELEOP_COMMAND, 10,
+            topic::TELEOP_COMMAND, qos,
             std::bind(&PX4Controller::TeleopCommandCallback, this, _1));
 
-        RCLCPP_INFO(this->get_logger(), "Created PX4 telemetry subscribers and teleop command subscriber");
+        exploration_goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            topic::EXPLORATION_GOAL, qos,
+            std::bind(&PX4Controller::ExplorationGoalCallback, this, _1));
 
-        namespace srv = flyscan::drone_controller::constants::srv;
-        
+        // create services
         set_control_mode_service_ = this->create_service<flyscan_interfaces::srv::SetControlMode>(
             srv::SET_CONTROL_MODE,
             std::bind(&PX4Controller::HandleSetControlModeService, this, _1, _2));
-        RCLCPP_INFO(this->get_logger(), "Created mode switching service: %s", srv::SET_CONTROL_MODE);
 
-        // Create setpoint timer (always running)
+        // Create timers
         setpoint_timer_ = this->create_wall_timer(
-            50ms,
+            std::chrono::milliseconds(setpoint_rate_ms_),
             std::bind(&PX4Controller::SetpointTimerCallback, this));
         setpoint_timer_->cancel();
 
-        RCLCPP_INFO(this->get_logger(), "Created setpoint timer (%d ms interval)", constants::config::SETPOINT_RATE_MS);
+        RCLCPP_INFO(this->get_logger(), "Created setpoint timer (%d ms interval)", setpoint_rate_ms_);
 
         // Initialize position setpoint to safe values
         current_position_setpoint_.north_m = 0.0f;
         current_position_setpoint_.east_m = 0.0f;
-        namespace config = flyscan::drone_controller::constants::config;
-        current_position_setpoint_.down_m = config::TAKEOFF_ALTITUDE;
+        current_position_setpoint_.down_m = takeoff_altitude_;
         current_position_setpoint_.yaw_deg = 0.0f;
 
         RCLCPP_INFO(this->get_logger(), "PX4 Controller configured successfully");
@@ -121,14 +142,17 @@ OperationStatus PX4Controller::HandleConfigure() {
 
 OperationStatus PX4Controller::HandleActivate() {
     RCLCPP_INFO(this->get_logger(), "Activating PX4 Controller...");
-    
-    // Controller starts in MANUAL mode
-    current_mode_ = ControlMode::kManual;
+
+    // Switch to the configured initial control mode
+    OperationStatus switch_status = SwitchToMode(initial_control_mode_);
+    if (switch_status != OperationStatus::kOK) {
+        RCLCPP_WARN(this->get_logger(), "Failed to switch to initial mode %s, defaulting to MANUAL", 
+                   ControlModeToString(initial_control_mode_).c_str());
+        current_mode_ = ControlMode::kManual;
+    }
     
     RCLCPP_INFO(this->get_logger(), "PX4 Controller activated in %s mode", 
                 ControlModeToString(current_mode_).c_str());
-    RCLCPP_INFO(this->get_logger(), "Use 'ros2 service call ~/set_control_mode flyscan_interfaces/srv/SetControlMode \"{mode: 1}\"' to enter TELEOP mode");
-    RCLCPP_INFO(this->get_logger(), "OR if TeleopNode is ready, use 'ros2 run flyscan_drone_controller teleop_node'");
     
     return OperationStatus::kOK;
 }
@@ -136,9 +160,6 @@ OperationStatus PX4Controller::HandleActivate() {
 OperationStatus PX4Controller::HandleDeactivate() {
     RCLCPP_INFO(this->get_logger(), "Deactivating PX4 Controller...");
 
-    // Exit current mode safely
-    ExitCurrentMode();
-    
     RCLCPP_INFO(this->get_logger(), "PX4 Controller deactivated");
     return OperationStatus::kOK;
 }
@@ -164,7 +185,6 @@ OperationStatus PX4Controller::HandleShutdown() {
 OperationStatus PX4Controller::HandleError() {
     RCLCPP_ERROR(this->get_logger(), "PX4 Controller error state - attempting recovery...");
     
-    ExitCurrentMode();
     current_mode_ = ControlMode::kManual;
     
     RCLCPP_INFO(this->get_logger(), "Returned to MANUAL mode for safety");
@@ -179,10 +199,12 @@ void PX4Controller::HandleSetControlModeService(
     const std::shared_ptr<flyscan_interfaces::srv::SetControlMode::Request> request,
     std::shared_ptr<flyscan_interfaces::srv::SetControlMode::Response> response) {
     
-    std::lock_guard<std::mutex> lock(mode_mutex_);
-    
     ControlMode requested_mode = static_cast<ControlMode>(request->mode);
-    ControlMode previous_mode = current_mode_;
+    ControlMode previous_mode;
+    {
+        std::lock_guard<std::mutex> lock(mode_mutex_);
+        previous_mode = current_mode_;
+    }
 
     std::string previous_mode_str = ControlModeToString(previous_mode);
     std::string requested_mode_str = ControlModeToString(requested_mode);
@@ -211,15 +233,8 @@ void PX4Controller::HandleSetControlModeService(
     }
 }
 
-OperationStatus PX4Controller::SwitchToMode(ControlMode new_mode) {
-    OperationStatus exit_status = ExitCurrentMode();
-    if (exit_status != OperationStatus::kOK) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to exit current mode %s", 
-                     ControlModeToString(current_mode_).c_str());
-        return exit_status;
-    }
-
-    // Enter new mode
+OperationStatus PX4Controller::SwitchToMode(ControlMode new_mode) 
+{
     OperationStatus status = OperationStatus::kNotImplemented;
     switch (new_mode) {
         case ControlMode::kManual:
@@ -229,8 +244,7 @@ OperationStatus PX4Controller::SwitchToMode(ControlMode new_mode) {
             status = EnterTeleopMode();
             break;
         case ControlMode::kAutonomous:
-            RCLCPP_WARN(this->get_logger(), "AUTONOMOUS mode not yet implemented");
-            status = OperationStatus::kNotImplemented;
+            status = EnterAutonomousMode();
             break;
         case ControlMode::kMission:
             RCLCPP_WARN(this->get_logger(), "MISSION mode not yet implemented");
@@ -266,41 +280,13 @@ OperationStatus PX4Controller::SwitchToMode(ControlMode new_mode) {
 OperationStatus PX4Controller::EnterManualMode() {
     RCLCPP_INFO(this->get_logger(), "Entering MANUAL mode");
     
-    // Always stop offboard mode
-    StopOffboardMode();
-    
     return OperationStatus::kOK;
 }
 
 
 OperationStatus PX4Controller::EnterTeleopMode() {
     RCLCPP_INFO(this->get_logger(), "Entering TELEOP mode");
-    
-    PublishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0f);
 
-    // Initialize current position setpoint to current position
-    px4_msgs::msg::VehicleLocalPosition current_position;
-    {
-        std::lock_guard<std::mutex> pos_lock(position_mutex_);
-        current_position = current_position_;
-    }
-
-    // Validate current position data
-    if (std::isnan(current_position.x) || std::isnan(current_position.y) || std::isnan(current_position.z)) {
-        RCLCPP_ERROR(this->get_logger(), "Cannot enter TELEOP mode: Invalid position data");
-        return OperationStatus::kNotInitialized;
-    }
-
-    {
-        std::lock_guard<std::mutex> setpoint_lock(position_setpoint_mutex_);
-        current_position_setpoint_.north_m = current_position.x;
-        current_position_setpoint_.east_m  = current_position.y;
-        current_position_setpoint_.down_m = current_position.z;
-        current_position_setpoint_.yaw_deg = current_position.heading * 180.0f / M_PI; // Convert to degrees
-    }
-    
-    // Enter offboard mode for teleop control
-    RCLCPP_INFO(this->get_logger(), "Entering offboard mode for teleop control...");
     OperationStatus offboard_status = StartOffboardMode();
     if (offboard_status != OperationStatus::kOK) {
         RCLCPP_ERROR(this->get_logger(), "Failed to enter offboard mode - TELEOP mode activation failed");
@@ -311,33 +297,56 @@ OperationStatus PX4Controller::EnterTeleopMode() {
     return OperationStatus::kOK;
 }
 
-OperationStatus PX4Controller::ExitCurrentMode() {
-    ControlMode mode = current_mode_;
-    
-    switch (mode) {
-        case ControlMode::kManual:
-            // Nothing special to do for manual mode
-            break;
-            
-        case ControlMode::kTeleop:
-            RCLCPP_INFO(this->get_logger(), "Exiting TELEOP mode");
-            break;
-            
-        case ControlMode::kAutonomous:
-        case ControlMode::kMission:
-        case ControlMode::kRTL:
-        case ControlMode::kLand:
-            // Future implementation for other modes
-            break;
-            
-        default:
-            break;
+OperationStatus PX4Controller::EnterAutonomousMode() {
+    RCLCPP_INFO(this->get_logger(), "Entering AUTONOMOUS mode for exploration");
+
+    if (current_mode_ == ControlMode::kAutonomous) {
+        return OperationStatus::kOK;
     }
-    
-    // Always stop offboard mode when exiting any mode
-    StopOffboardMode();
-    
+
+    OperationStatus offboard_status = StartOffboardMode();
+    if (offboard_status != OperationStatus::kOK) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to enter offboard mode - AUTONOMOUS mode activation failed");
+        return offboard_status;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "AUTONOMOUS mode active - ready for exploration goals");
     return OperationStatus::kOK;
+}
+
+void PX4Controller::ExplorationGoalCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+    if (current_mode_ != ControlMode::kAutonomous) {
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Received exploration goal: (%.2f, %.2f, %.2f)", 
+               msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+    
+    {
+        std::lock_guard<std::mutex> lock(exploration_goal_mutex_);
+        current_exploration_goal_ = *msg;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(position_setpoint_mutex_);
+        current_position_setpoint_.north_m = msg->pose.position.x;
+        current_position_setpoint_.east_m = msg->pose.position.y;
+        current_position_setpoint_.down_m = msg->pose.position.z;
+        
+        tf2::Quaternion q(
+            msg->pose.orientation.x,
+            msg->pose.orientation.y,
+            msg->pose.orientation.z,
+            msg->pose.orientation.w);
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+        current_position_setpoint_.yaw_deg = yaw * 180.0f / M_PI;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Updated autonomous setpoint: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
+                current_position_setpoint_.north_m, current_position_setpoint_.east_m, 
+                current_position_setpoint_.down_m, current_position_setpoint_.yaw_deg);
 }
 
 // ============================================================================
@@ -348,17 +357,10 @@ void PX4Controller::VehicleLocalPositionCallback(const px4_msgs::msg::VehicleLoc
     std::lock_guard<std::mutex> lock(position_mutex_);
     current_position_ = *msg;
 
-    rclcpp::Time now = this->get_clock()->now();
-    static rclcpp::Time last_log_time = now;
-
-    if ((now - last_log_time).seconds() > 0.5) {
-        last_log_time = now;
-
-        RCLCPP_INFO(this->get_logger(), 
-            "VehicleLocalPositionCallback: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
-            current_position_.x, current_position_.y, current_position_.z, 
-            current_position_.heading * 180.0f / M_PI);
-    }
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+        "VehicleLocalPositionCallback: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
+        current_position_.x, current_position_.y, current_position_.z, 
+        current_position_.heading * 180.0f / M_PI);
 }
 
 void PX4Controller::VehicleStatusCallback(const px4_msgs::msg::VehicleStatus::SharedPtr msg) {
@@ -420,32 +422,30 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
     std::lock_guard<std::mutex> pos_lock(position_setpoint_mutex_);
     
     if (msg->command == "hold_position" || msg->command == "stop") {
-        // Hold current position - no changes to setpoint
         RCLCPP_INFO(this->get_logger(), "Holding current position");
     } else {
         // Apply movement commands (step-based movement)
-        namespace config = flyscan::drone_controller::constants::config;
         
         if (msg->command == "forward") {
-            current_position_setpoint_.north_m += config::POSITION_STEP;
+            current_position_setpoint_.north_m += position_step_;
         } else if (msg->command == "backward") {
-            current_position_setpoint_.north_m -= config::POSITION_STEP;
+            current_position_setpoint_.north_m -= position_step_;
         } else if (msg->command == "right") {
-            current_position_setpoint_.east_m += config::POSITION_STEP;
+            current_position_setpoint_.east_m += position_step_;
         } else if (msg->command == "left") {
-            current_position_setpoint_.east_m -= config::POSITION_STEP;
+            current_position_setpoint_.east_m -= position_step_;
         } else if (msg->command == "up") {
-            current_position_setpoint_.down_m -= config::POSITION_STEP;
+            current_position_setpoint_.down_m -= position_step_;
         } else if (msg->command == "down") {
-            current_position_setpoint_.down_m += config::POSITION_STEP;
+            current_position_setpoint_.down_m += position_step_;
         } else if (msg->command == "yaw_right") {
-            current_position_setpoint_.yaw_deg += config::YAW_STEP;
+            current_position_setpoint_.yaw_deg += yaw_step_;
             // Normalize yaw to [-180, 180]
             while (current_position_setpoint_.yaw_deg > 180.0f) {
                 current_position_setpoint_.yaw_deg -= 360.0f;
             }
         } else if (msg->command == "yaw_left") {
-            current_position_setpoint_.yaw_deg -= config::YAW_STEP;
+            current_position_setpoint_.yaw_deg -= yaw_step_;
             // Normalize yaw to [-180, 180]
             while (current_position_setpoint_.yaw_deg < -180.0f) {
                 current_position_setpoint_.yaw_deg += 360.0f;
@@ -458,12 +458,32 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
     }
 }
 
-OperationStatus PX4Controller::StartOffboardMode() {
-
+OperationStatus PX4Controller::StartOffboardMode() 
+{
     RCLCPP_INFO(this->get_logger(), "Starting offboard mode sequence...");
-    namespace config = flyscan::drone_controller::constants::config;
-    rclcpp::WallRate rate(1000.0 / config::SETPOINT_RATE_MS);
-    
+    SendArmDisarmCommand(true);
+
+    px4_msgs::msg::VehicleLocalPosition current_position;
+    {
+        std::lock_guard<std::mutex> pos_lock(position_mutex_);
+        current_position = current_position_;
+    }
+
+    if (std::isnan(current_position.x) || std::isnan(current_position.y) || std::isnan(current_position.z)) {
+        RCLCPP_ERROR(this->get_logger(), "Cannot enter AUTONOMOUS mode: Invalid position data");
+        return OperationStatus::kNotInitialized;
+    }
+
+    {
+        std::lock_guard<std::mutex> setpoint_lock(position_setpoint_mutex_);
+        current_position_setpoint_.north_m = current_position.x;
+        current_position_setpoint_.east_m  = current_position.y;
+        current_position_setpoint_.down_m = current_position.z;
+        current_position_setpoint_.yaw_deg = current_position.heading * 180.0f / M_PI;
+    }
+
+    rclcpp::WallRate rate(1000.0 / setpoint_rate_ms_);
+
     // Send a few setpoints before switching to offboard mode
     for (int i = 0; i < 10; ++i) {
         PublishOffboardControlMode();
@@ -474,23 +494,8 @@ OperationStatus PX4Controller::StartOffboardMode() {
     // Switch to offboard mode
     PublishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1.0f, 6.0f);
     setpoint_timer_->reset();
-    
-    // bool success = WaitForNavStateActive(px4_msgs::msg::VehicleStatus::NAVIGATION_STATE_OFFBOARD, timeout_ms);
-    // if (!success) {
-    //     RCLCPP_ERROR(this->get_logger(), "Failed to enter offboard mode");
-    //     return OperationStatus::kTimeout;
-    // }
 
     RCLCPP_INFO(this->get_logger(), "Offboard mode started successfully");
-    return OperationStatus::kOK;
-}
-
-OperationStatus PX4Controller::StopOffboardMode() {
-    // Always proceed with stopping offboard mode
-    
-    RCLCPP_INFO(this->get_logger(), "Stopping offboard mode");
-    
-    RCLCPP_INFO(this->get_logger(), "Offboard mode stopped");
     return OperationStatus::kOK;
 }
 
@@ -528,7 +533,7 @@ void PX4Controller::PublishTrajectorySetpoint() {
     msg.yaw = cmd.yaw_deg * M_PI / 180.0f; // Convert to radians
     msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
     
-    RCLCPP_DEBUG(this->get_logger(), "Publishing TrajectorySetpoint: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Publishing TrajectorySetpoint: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
                  cmd.north_m, cmd.east_m, cmd.down_m, cmd.yaw_deg);
     trajectory_setpoint_publisher_->publish(msg);
 }
@@ -550,29 +555,37 @@ void PX4Controller::PublishVehicleCommand(uint16_t command, float param1, float 
     vehicle_command_publisher_->publish(msg);
 }
 
+void PX4Controller::SendArmDisarmCommand(bool arm_vehicle) {
+    float param1 = arm_vehicle ? 1.0f : 0.0f;
+    PublishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, param1);
+    RCLCPP_INFO(this->get_logger(), "Sent %s command to vehicle", arm_vehicle ? "ARM" : "DISARM");
+}
+
 
 } // namespace drone_controller
 } // namespace flyscan
 
 
-int main(int argc, char* argv[]) {
-    // Initialize ROS2
+
+int main(int argc, char* argv[]) 
+{
     rclcpp::init(argc, argv);
     
+    flyscan::drone_controller::PX4Controller::SharedPtr controller;
+
     try {
-        // Create PX4Controller node
-        auto controller = std::make_shared<flyscan::drone_controller::PX4Controller>();
+        controller = std::make_shared<flyscan::drone_controller::PX4Controller>();
+        flyscan::common::SetupSigintHandler(controller, "px4_controller_main");
+        
         rclcpp::executors::MultiThreadedExecutor executor;
         executor.add_node(controller->get_node_base_interface());
-        
-        // Configure the node
+
         auto configure_result = controller->configure();
         if (configure_result.id() != lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE) {
             RCLCPP_ERROR(rclcpp::get_logger("px4_controller_main"), "Failed to configure PX4Controller");
             return 1;
         }
 
-        // Activate the node
         auto activate_result = controller->activate();
         if (activate_result.id() != lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
             RCLCPP_ERROR(rclcpp::get_logger("px4_controller_main"), "Failed to activate PX4Controller");
@@ -586,28 +599,16 @@ int main(int argc, char* argv[]) {
         RCLCPP_INFO(rclcpp::get_logger("px4_controller_main"), 
                     "Mode 0=MANUAL, 1=TELEOP, 2=AUTONOMOUS, 3=MISSION, 4=RTL, 5=LAND");
 
-        // Spin the executor
         executor.spin();
 
-        // Deactivate and cleanup on shutdown
-        RCLCPP_INFO(rclcpp::get_logger("px4_controller_main"), "Shutting down PX4Controller...");
-
-        auto deactivate_result = controller->deactivate();
-        if (deactivate_result.id() != lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE) {
-            RCLCPP_WARN(rclcpp::get_logger("px4_controller_main"), "Failed to deactivate PX4Controller properly");
-        }
-
-        auto cleanup_result = controller->cleanup();
-        if (cleanup_result.id() != lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED) {
-            RCLCPP_WARN(rclcpp::get_logger("px4_controller_main"), "Failed to cleanup PX4Controller properly");
-        }
-
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(rclcpp::get_logger("px4_controller_main"), 
-                     "Exception in main: %s", e.what());
+        RCLCPP_ERROR(rclcpp::get_logger("px4_controller_main"), "Exception in main: %s", e.what());
+        if (controller) {
+            controller->shutdown();
+        }
         return 1;
     }
-    
-    RCLCPP_INFO(rclcpp::get_logger("px4_controller_main"), "PX4Controller shutdown complete");
+
+    RCLCPP_INFO(rclcpp::get_logger("px4_controller_main"), "PX4Controller main loop complete");
     return 0;
 }

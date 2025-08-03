@@ -1,5 +1,6 @@
 #include <cassert>
 #include <chrono>
+#include <rclcpp/qos.hpp>
 #include <sstream>
 
 #include "flyscan_core/life_monitor.hpp"
@@ -14,7 +15,6 @@ LifeMonitor::LifeMonitor(const rclcpp::NodeOptions & options)
     RCLCPP_INFO(this->get_logger(), "LifeMonitor node initializing");
 
     using namespace std::placeholders;
-    using namespace flyscan::core::constants;
 
     /*
      * Services providers
@@ -34,24 +34,24 @@ LifeMonitor::LifeMonitor(const rclcpp::NodeOptions & options)
     /*
      * Timers
     */
-    namespace timer = flyscan::core::constants::timer;
 
     m_node_monitor_timer = this->create_wall_timer(
         timer::HEARTBEAT_MONITOR_PERIOD,
         [this]() {
-            std::unique_lock<std::shared_mutex> lock(m_nodes_mutex);
-
-            for (auto& pair : m_registered_nodes) {
+            std::unordered_map<std::string, RegisteredNodeInfo> registered_nodes;
+            {
+                std::shared_lock<std::shared_mutex> lock(m_nodes_mutex);
+                registered_nodes = m_registered_nodes;
+            }
+            for (auto& pair : registered_nodes) {
                 auto& node_info = pair.second;
 
                 auto timeout_duration = timer::HEARTBEAT_TIMEOUT_DURATION;
-                if (now() - node_info.last_heartbeat <= timeout_duration) {
-                    return;
-
-                RCLCPP_DEBUG(this->get_logger(), "Node %s heartbeat timeout", node_info.node_name.c_str());
-                this->HandleHeartbeatTimeout(pair.first);
-                // TODO: Implement recovery mechanism
-                // InitiateNodeRecovery(pair.first);
+                if (now() - node_info.last_heartbeat > timeout_duration) {
+                    RCLCPP_DEBUG(this->get_logger(), "Node %s heartbeat timeout", node_info.node_name.c_str());
+                    this->HandleHeartbeatTimeout(pair.first);
+                    // TODO: Implement recovery mechanism
+                    // InitiateNodeRecovery(pair.first);
                 }
             }
         });
@@ -86,11 +86,10 @@ void LifeMonitor::HandleRegisterNode(
         return;
     }
     
-    namespace qos = flyscan::core::constants::qos;
     std::string state_topic = "/" + request->node_name + "/state";
 
     auto state_subscription = this->create_subscription<lifecycle_msgs::msg::State>(
-        state_topic, qos::SUBSCRIPTION_QOS,
+        state_topic, rclcpp::SensorDataQoS(),
         [this, node_id](const LifecycleStateMsg::SharedPtr msg) {
             RCLCPP_DEBUG(this->get_logger(), "Received state update from: %s, state: %u", 
                         node_id.c_str(), msg->id);
@@ -111,7 +110,7 @@ void LifeMonitor::HandleRegisterNode(
         }
     );
     auto heartbeat_subscription = this->create_subscription<NodeHeartbeatMsg>(
-        heartbeat_topic, qos::SUBSCRIPTION_QOS,
+        heartbeat_topic, rclcpp::SensorDataQoS(),
         [this, node_id](const NodeHeartbeatMsg::SharedPtr msg) {
             if (node_id != msg->node_id) {
                 RCLCPP_WARN(this->get_logger(), "Received heartbeat with mismatched node ID: %s (expected: %s)", 
@@ -168,6 +167,7 @@ void LifeMonitor::HandleUnregisterNode(
     auto it = m_registered_nodes.find(request->node_id);
     if (it != m_registered_nodes.end()) {
         it->second.state_subscription.reset();
+        it->second.heartbeat_subscription.reset();
         m_registered_nodes.erase(it);
         
         response->success = true;
@@ -207,6 +207,23 @@ void LifeMonitor::HandleGetRegisteredNodes(
         info.registration_time = node_info.registration_time;
 
         response->nodes.push_back(info);
+    }
+}
+
+void LifeMonitor::HandleHeartbeatTimeout(const std::string& node_id)
+{
+    RCLCPP_WARN(this->get_logger(), "Heartbeat timeout for node: %s", node_id.c_str());
+    
+    auto it = m_registered_nodes.find(node_id);
+    if (it != m_registered_nodes.end()) {
+        auto& node_info = it->second;
+        RCLCPP_ERROR(this->get_logger(), "Node %s (type: %s) has not sent heartbeat for too long. Last heartbeat: %ld", 
+                     node_info.node_name.c_str(), 
+                     NodeTypeToString(node_info.node_type).c_str(),
+                     node_info.last_heartbeat.nanoseconds());
+        
+        // TODO: Implement recovery mechanism or alerting
+        // For now, just log the timeout
     }
 }
 
