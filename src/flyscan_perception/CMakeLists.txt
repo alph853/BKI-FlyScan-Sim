@@ -29,6 +29,7 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(CURL REQUIRED)
 find_package(onnxruntime REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 find_package(flyscan_core REQUIRED)
 find_package(flyscan_common REQUIRED)
@@ -88,6 +89,7 @@ set(semantic_perception_packages
   sensor_msgs
   cv_bridge
   OpenCV
+  tf2_geometry_msgs
 
   flyscan_common
 )

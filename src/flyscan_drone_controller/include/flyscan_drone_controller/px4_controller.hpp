@@ -44,9 +44,6 @@ using flyscan::common::NodeType;
 using flyscan::common::ControlMode;
 using flyscan::core::BaseNode;
 
-/**
- * @brief Position structure for position-based control
- */
 struct Position {
     float north_m = 0.0f;   ///< North position in meters (NED frame)
     float east_m = 0.0f;    ///< East position in meters (NED frame)  
@@ -191,6 +188,16 @@ private:
      */
     void SendArmDisarmCommand(bool arm_vehicle);
 
+    /**
+     * @brief Transform body frame movement to world frame using current yaw
+     * @param body_x Body frame X movement (forward/backward)
+     * @param body_y Body frame Y movement (left/right)
+     * @param current_yaw_rad Current yaw angle in radians
+     * @param world_x Output world frame X movement (north/south)
+     * @param world_y Output world frame Y movement (east/west)
+     */
+    void TransformBodyToWorld(float body_x, float body_y, float current_yaw_rad, float& world_x, float& world_y);
+
     
     // ============================================================================
     // Mode Management Methods
@@ -286,9 +293,10 @@ private:
     
     int setpoint_rate_ms_;
     float takeoff_altitude_;
-    float position_step_;
+    float teleop_position_step_;
     float yaw_step_;
     ControlMode initial_control_mode_;
+    
 };
 
 } // namespace drone_controller

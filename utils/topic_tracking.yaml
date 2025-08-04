@@ -1,0 +1,1407 @@
+gazebo:
+  services: []
+  topics: []
+ros2:
+  nodes:
+  - /camera_to_base_link
+  - /frontier_explorer
+  - /gz_bridge
+  - /imu_to_base_link
+  - /life_monitor
+  - /px4_controller
+  - /px4_ros_bridge
+  - /rtabmap
+  - /rviz
+  - /semantic_perception
+  - /transform_listener_impl_558547f315f0
+  - /transform_listener_impl_55d23163b580
+  - /transform_listener_impl_56191d93e1f0
+  - /video_streamer
+  - /visualization_node
+  services:
+  - name: /camera_to_base_link/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /camera_to_base_link/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /camera_to_base_link/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /camera_to_base_link/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /camera_to_base_link/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /camera_to_base_link/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /camera_to_base_link/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /fmu/vehicle_command
+    request_type: ''
+    response_type: ''
+    type: px4_msgs/srv/VehicleCommand
+  - name: /frontier_explorer/change_state
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/ChangeState
+  - name: /frontier_explorer/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /frontier_explorer/get_available_states
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableStates
+  - name: /frontier_explorer/get_available_transitions
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableTransitions
+  - name: /frontier_explorer/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /frontier_explorer/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /frontier_explorer/get_state
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetState
+  - name: /frontier_explorer/get_transition_graph
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableTransitions
+  - name: /frontier_explorer/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /frontier_explorer/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /frontier_explorer/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /frontier_explorer/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /gz_bridge/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /gz_bridge/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /gz_bridge/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /gz_bridge/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /gz_bridge/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /gz_bridge/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /gz_bridge/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /imu_to_base_link/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /imu_to_base_link/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /imu_to_base_link/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /imu_to_base_link/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /imu_to_base_link/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /imu_to_base_link/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /imu_to_base_link/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /life_monitor/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /life_monitor/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /life_monitor/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /life_monitor/get_registered
+    request_type: ''
+    response_type: ''
+    type: flyscan_interfaces/srv/GetRegisteredNodes
+  - name: /life_monitor/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /life_monitor/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /life_monitor/register_node
+    request_type: ''
+    response_type: ''
+    type: flyscan_interfaces/srv/RegisterNode
+  - name: /life_monitor/request_recovery
+    request_type: ''
+    response_type: ''
+    type: flyscan_interfaces/srv/RequestRecovery
+  - name: /life_monitor/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /life_monitor/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /life_monitor/unregister_node
+    request_type: ''
+    response_type: ''
+    type: flyscan_interfaces/srv/UnregisterNode
+  - name: /px4_controller/change_state
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/ChangeState
+  - name: /px4_controller/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /px4_controller/get_available_states
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableStates
+  - name: /px4_controller/get_available_transitions
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableTransitions
+  - name: /px4_controller/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /px4_controller/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /px4_controller/get_state
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetState
+  - name: /px4_controller/get_transition_graph
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableTransitions
+  - name: /px4_controller/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /px4_controller/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /px4_controller/set_control_mode
+    request_type: ''
+    response_type: ''
+    type: flyscan_interfaces/srv/SetControlMode
+  - name: /px4_controller/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /px4_controller/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /px4_ros_bridge/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /px4_ros_bridge/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /px4_ros_bridge/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /px4_ros_bridge/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /px4_ros_bridge/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /px4_ros_bridge/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /px4_ros_bridge/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /rtabmap/add_link
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/AddLink
+  - name: /rtabmap/backup
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/cancel_goal
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/cleanup_local_grids
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/CleanupLocalGrids
+  - name: /rtabmap/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /rtabmap/detect_more_loop_closures
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/DetectMoreLoopClosures
+  - name: /rtabmap/get_map
+    request_type: ''
+    response_type: ''
+    type: nav_msgs/srv/GetMap
+  - name: /rtabmap/get_map_data
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/GetMap
+  - name: /rtabmap/get_map_data2
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/GetMap2
+  - name: /rtabmap/get_node_data
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/GetNodeData
+  - name: /rtabmap/get_nodes_in_radius
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/GetNodesInRadius
+  - name: /rtabmap/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /rtabmap/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /rtabmap/get_plan
+    request_type: ''
+    response_type: ''
+    type: nav_msgs/srv/GetPlan
+  - name: /rtabmap/get_plan_nodes
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/GetPlan
+  - name: /rtabmap/get_prob_map
+    request_type: ''
+    response_type: ''
+    type: nav_msgs/srv/GetMap
+  - name: /rtabmap/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /rtabmap/global_bundle_adjustment
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/GlobalBundleAdjustment
+  - name: /rtabmap/list_labels
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/ListLabels
+  - name: /rtabmap/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /rtabmap/load_database
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/LoadDatabase
+  - name: /rtabmap/log_debug
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/log_error
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/log_info
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/log_warning
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/octomap_binary
+    request_type: ''
+    response_type: ''
+    type: octomap_msgs/srv/GetOctomap
+  - name: /rtabmap/octomap_full
+    request_type: ''
+    response_type: ''
+    type: octomap_msgs/srv/GetOctomap
+  - name: /rtabmap/pause
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/publish_map
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/PublishMap
+  - name: /rtabmap/remove_label
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/RemoveLabel
+  - name: /rtabmap/reset
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/resume
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/set_goal
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/SetGoal
+  - name: /rtabmap/set_label
+    request_type: ''
+    response_type: ''
+    type: rtabmap_msgs/srv/SetLabel
+  - name: /rtabmap/set_mode_localization
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/set_mode_mapping
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /rtabmap/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /rtabmap/trigger_new_map
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rtabmap/update_parameters
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rviz/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /rviz/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /rviz/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /rviz/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /rviz/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /rviz/reset_time
+    request_type: ''
+    response_type: ''
+    type: std_srvs/srv/Empty
+  - name: /rviz/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /rviz/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /semantic_perception/change_state
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/ChangeState
+  - name: /semantic_perception/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /semantic_perception/get_available_states
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableStates
+  - name: /semantic_perception/get_available_transitions
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableTransitions
+  - name: /semantic_perception/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /semantic_perception/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /semantic_perception/get_state
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetState
+  - name: /semantic_perception/get_transition_graph
+    request_type: ''
+    response_type: ''
+    type: lifecycle_msgs/srv/GetAvailableTransitions
+  - name: /semantic_perception/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /semantic_perception/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /semantic_perception/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /semantic_perception/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /transform_listener_impl_558547f315f0/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /transform_listener_impl_55d23163b580/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /transform_listener_impl_56191d93e1f0/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /video_streamer/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /video_streamer/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /video_streamer/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /video_streamer/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /video_streamer/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /video_streamer/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /video_streamer/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  - name: /visualization_node/describe_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/DescribeParameters
+  - name: /visualization_node/get_parameter_types
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameterTypes
+  - name: /visualization_node/get_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/GetParameters
+  - name: /visualization_node/get_type_description
+    request_type: ''
+    response_type: ''
+    type: type_description_interfaces/srv/GetTypeDescription
+  - name: /visualization_node/list_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/ListParameters
+  - name: /visualization_node/set_parameters
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParameters
+  - name: /visualization_node/set_parameters_atomically
+    request_type: ''
+    response_type: ''
+    type: rcl_interfaces/srv/SetParametersAtomically
+  topics:
+  - name: /apriltag/detections
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: apriltag_msgs/msg/AprilTagDetectionArray
+  - name: /aruco/detections
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: aruco_msgs/msg/MarkerArray
+  - name: /aruco_opencv/detections
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: aruco_opencv_msgs/msg/ArucoDetection
+  - name: /camera/camera_info
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 3
+    subscribers: []
+    type: sensor_msgs/msg/CameraInfo
+  - name: /camera/depth/image
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 3
+    subscribers: []
+    type: sensor_msgs/msg/Image
+  - name: /camera/depth/points
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 3
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /camera/image_raw
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 4
+    subscribers: []
+    type: sensor_msgs/msg/Image
+  - name: /clicked_point
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: geometry_msgs/msg/PointStamped
+  - name: /clock
+    publisher_count: 2
+    publishers: []
+    subscriber_count: 12
+    subscribers: []
+    type: rosgraph_msgs/msg/Clock
+  - name: /cloud_ground
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /cloud_obstacles
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /detections
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: flyscan_interfaces/msg/DetectionArray
+  - name: /diagnostics
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: diagnostic_msgs/msg/DiagnosticArray
+  - name: /exploration_goal
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: geometry_msgs/msg/PoseStamped
+  - name: /fmu/in/actuator_motors
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/ActuatorMotors
+  - name: /fmu/in/actuator_servos
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/ActuatorServos
+  - name: /fmu/in/arming_check_reply_v1
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/ArmingCheckReply
+  - name: /fmu/in/aux_global_position
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleGlobalPosition
+  - name: /fmu/in/config_control_setpoints
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleControlMode
+  - name: /fmu/in/config_overrides_request
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/ConfigOverrides
+  - name: /fmu/in/distance_sensor
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/DistanceSensor
+  - name: /fmu/in/fixed_wing_lateral_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/FixedWingLateralSetpoint
+  - name: /fmu/in/fixed_wing_longitudinal_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/FixedWingLongitudinalSetpoint
+  - name: /fmu/in/goto_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/GotoSetpoint
+  - name: /fmu/in/lateral_control_configuration
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/LateralControlConfiguration
+  - name: /fmu/in/longitudinal_control_configuration
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/LongitudinalControlConfiguration
+  - name: /fmu/in/manual_control_input
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/ManualControlSetpoint
+  - name: /fmu/in/message_format_request
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/MessageFormatRequest
+  - name: /fmu/in/mode_completed
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/ModeCompleted
+  - name: /fmu/in/obstacle_distance
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/ObstacleDistance
+  - name: /fmu/in/offboard_control_mode
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/OffboardControlMode
+  - name: /fmu/in/onboard_computer_status
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/OnboardComputerStatus
+  - name: /fmu/in/register_ext_component_request
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/RegisterExtComponentRequest
+  - name: /fmu/in/rover_attitude_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/RoverAttitudeSetpoint
+  - name: /fmu/in/rover_position_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/RoverPositionSetpoint
+  - name: /fmu/in/rover_rate_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/RoverRateSetpoint
+  - name: /fmu/in/rover_steering_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/RoverSteeringSetpoint
+  - name: /fmu/in/rover_throttle_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/RoverThrottleSetpoint
+  - name: /fmu/in/rover_velocity_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/RoverVelocitySetpoint
+  - name: /fmu/in/sensor_optical_flow
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/SensorOpticalFlow
+  - name: /fmu/in/telemetry_status
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/TelemetryStatus
+  - name: /fmu/in/trajectory_setpoint
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/TrajectorySetpoint
+  - name: /fmu/in/unregister_ext_component
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/UnregisterExtComponent
+  - name: /fmu/in/vehicle_attitude_setpoint_v1
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleAttitudeSetpoint
+  - name: /fmu/in/vehicle_command
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleCommand
+  - name: /fmu/in/vehicle_command_mode_executor
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleCommand
+  - name: /fmu/in/vehicle_mocap_odometry
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleOdometry
+  - name: /fmu/in/vehicle_rates_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleRatesSetpoint
+  - name: /fmu/in/vehicle_thrust_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleThrustSetpoint
+  - name: /fmu/in/vehicle_torque_setpoint
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleTorqueSetpoint
+  - name: /fmu/in/vehicle_visual_odometry
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleOdometry
+  - name: /fmu/out/airspeed_validated_v1
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/AirspeedValidated
+  - name: /fmu/out/arming_check_request
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/ArmingCheckRequest
+  - name: /fmu/out/battery_status_v1
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/BatteryStatus
+  - name: /fmu/out/collision_constraints
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/CollisionConstraints
+  - name: /fmu/out/estimator_status_flags
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/EstimatorStatusFlags
+  - name: /fmu/out/failsafe_flags
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/FailsafeFlags
+  - name: /fmu/out/home_position_v1
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/HomePosition
+  - name: /fmu/out/manual_control_setpoint
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/ManualControlSetpoint
+  - name: /fmu/out/message_format_response
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/MessageFormatResponse
+  - name: /fmu/out/mode_completed
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/ModeCompleted
+  - name: /fmu/out/position_setpoint_triplet
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/PositionSetpointTriplet
+  - name: /fmu/out/register_ext_component_reply
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/RegisterExtComponentReply
+  - name: /fmu/out/sensor_combined
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/SensorCombined
+  - name: /fmu/out/timesync_status
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/TimesyncStatus
+  - name: /fmu/out/vehicle_attitude
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/VehicleAttitude
+  - name: /fmu/out/vehicle_command_ack
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/VehicleCommandAck
+  - name: /fmu/out/vehicle_control_mode
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/VehicleControlMode
+  - name: /fmu/out/vehicle_global_position
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/VehicleGlobalPosition
+  - name: /fmu/out/vehicle_gps_position
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/SensorGps
+  - name: /fmu/out/vehicle_land_detected
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleLandDetected
+  - name: /fmu/out/vehicle_local_position_v1
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleLocalPosition
+  - name: /fmu/out/vehicle_odometry
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleOdometry
+  - name: /fmu/out/vehicle_status_v1
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: px4_msgs/msg/VehicleStatus
+  - name: /fmu/out/vtol_vehicle_status
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/VtolVehicleStatus
+  - name: /fmu/out/wind
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: px4_msgs/msg/Wind
+  - name: /frontier_explorer/bond
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: flyscan_interfaces/msg/NodeHeartbeat
+  - name: /frontier_explorer/state
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: lifecycle_msgs/msg/State
+  - name: /frontier_explorer/transition_event
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: lifecycle_msgs/msg/TransitionEvent
+  - name: /frontier_markers
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: visualization_msgs/msg/MarkerArray
+  - name: /global_path
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: nav_msgs/msg/Path
+  - name: /global_path_nodes
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: rtabmap_msgs/msg/Path
+  - name: /global_pose
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+  - name: /goal
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: geometry_msgs/msg/PoseStamped
+  - name: /goal_node
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: rtabmap_msgs/msg/Goal
+  - name: /goal_out
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: geometry_msgs/msg/PoseStamped
+  - name: /goal_pose
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: geometry_msgs/msg/PoseStamped
+  - name: /goal_reached
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: std_msgs/msg/Bool
+  - name: /gps/fix
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: sensor_msgs/msg/NavSatFix
+  - name: /grid_prob_map
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: nav_msgs/msg/OccupancyGrid
+  - name: /imu/data
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 2
+    subscribers: []
+    type: sensor_msgs/msg/Imu
+  - name: /info
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: rtabmap_msgs/msg/Info
+  - name: /initialpose
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+  - name: /labels
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: visualization_msgs/msg/MarkerArray
+  - name: /landmark_detection
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: rtabmap_msgs/msg/LandmarkDetection
+  - name: /landmark_detections
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: rtabmap_msgs/msg/LandmarkDetections
+  - name: /landmarks
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: geometry_msgs/msg/PoseArray
+  - name: /local_grid_empty
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /local_grid_ground
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /local_grid_obstacle
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /local_path
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: nav_msgs/msg/Path
+  - name: /local_path_nodes
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: rtabmap_msgs/msg/Path
+  - name: /localization_pose
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: geometry_msgs/msg/PoseWithCovarianceStamped
+  - name: /map
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 2
+    subscribers: []
+    type: nav_msgs/msg/OccupancyGrid
+  - name: /mapData
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: rtabmap_msgs/msg/MapData
+  - name: /mapGraph
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: rtabmap_msgs/msg/MapGraph
+  - name: /mapOdomCache
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: rtabmap_msgs/msg/MapGraph
+  - name: /mapPath
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: nav_msgs/msg/Path
+  - name: /map_updates
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: map_msgs/msg/OccupancyGridUpdate
+  - name: /octomap_binary
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: octomap_msgs/msg/Octomap
+  - name: /octomap_empty_space
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /octomap_full
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: octomap_msgs/msg/Octomap
+  - name: /octomap_global_frontier_space
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /octomap_grid
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: nav_msgs/msg/OccupancyGrid
+  - name: /octomap_ground
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /octomap_obstacles
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /octomap_occupied_space
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /odom
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 3
+    subscribers: []
+    type: nav_msgs/msg/Odometry
+  - name: /odom_path
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: nav_msgs/msg/Path
+  - name: /parameter_events
+    publisher_count: 13
+    publishers: []
+    subscriber_count: 14
+    subscribers: []
+    type: rcl_interfaces/msg/ParameterEvent
+  - name: /px4_controller/bond
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: flyscan_interfaces/msg/NodeHeartbeat
+  - name: /px4_controller/state
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: lifecycle_msgs/msg/State
+  - name: /px4_controller/teleop_command
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: flyscan_interfaces/msg/TeleopCommand
+  - name: /px4_controller/transition_event
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: lifecycle_msgs/msg/TransitionEvent
+  - name: /qr_positions
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: geometry_msgs/msg/PointStamped
+  - name: /rosout
+    publisher_count: 16
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: rcl_interfaces/msg/Log
+  - name: /rtabmap/cloud_map
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: sensor_msgs/msg/PointCloud2
+  - name: /rtabmap/republish_node_data
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: std_msgs/msg/Int32MultiArray
+  - name: /semantic_perception/bond
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: flyscan_interfaces/msg/NodeHeartbeat
+  - name: /semantic_perception/state
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: lifecycle_msgs/msg/State
+  - name: /semantic_perception/transition_event
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 0
+    subscribers: []
+    type: lifecycle_msgs/msg/TransitionEvent
+  - name: /tag_detections
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: apriltag_msgs/msg/AprilTagDetectionArray
+  - name: /tf
+    publisher_count: 2
+    publishers: []
+    subscriber_count: 3
+    subscribers: []
+    type: tf2_msgs/msg/TFMessage
+  - name: /tf_static
+    publisher_count: 2
+    publishers: []
+    subscriber_count: 3
+    subscribers: []
+    type: tf2_msgs/msg/TFMessage
+  - name: /user_data_async
+    publisher_count: 0
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: rtabmap_msgs/msg/UserData
+  - name: /visualization_marker_array
+    publisher_count: 1
+    publishers: []
+    subscriber_count: 1
+    subscribers: []
+    type: visualization_msgs/msg/MarkerArray
+timestamp: '2025-08-04T23:50:56.487914'

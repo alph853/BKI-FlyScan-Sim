@@ -23,6 +23,9 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include "flyscan_core/base_node.hpp"
 #include "flyscan_interfaces/msg/detection_array.hpp"
@@ -42,6 +45,7 @@ struct Detection {
     int class_id;
     std::string decoded_data;
     std::string decode_params;
+    geometry_msgs::msg::Point position_3d;  // 3D position in camera frame
 };
 
 /**
@@ -156,10 +160,19 @@ private:
                                                         const sensor_msgs::msg::CameraInfo& camera_info);
     
     /**
-     * @brief Send HTTP POST request with QR code data
+     * @brief Send HTTP POST request with QR code data (with deduplication)
      * @param qr_data Decoded QR code string
+     * @param position 3D position of the QR code in camera frame
      */
-    void SendQrHttpRequest(const std::string& qr_data);
+    void SendQrHttpRequest(const std::string& qr_data, const geometry_msgs::msg::Point& position);
+    
+    /**
+     * @brief Check if QR code is a duplicate based on position similarity
+     * @param qr_data Decoded QR code string
+     * @param position 3D position of the QR code
+     * @return bool True if this is a new/different QR code
+     */
+    bool IsNewQrCode(const std::string& qr_data, const geometry_msgs::msg::Point& position);
     
     /**
      * @brief Callback for curl write operations
@@ -196,6 +209,27 @@ private:
     
     std::mutex depth_mutex_;
     std::mutex camera_info_mutex_;
+    
+    // ============================================================================
+    // TF2 Transform Components
+    // ============================================================================
+    
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+    
+    // ============================================================================
+    // QR Code Deduplication
+    // ============================================================================
+    
+    struct QrRecord {
+        std::string data;
+        geometry_msgs::msg::Point position;
+        rclcpp::Time timestamp;
+    };
+    
+    std::vector<QrRecord> processed_qr_codes_;
+    std::mutex qr_records_mutex_;
+    double qr_position_threshold_;  // Distance threshold for considering QR codes as same
     
     // ============================================================================
     // YOLO Model Components

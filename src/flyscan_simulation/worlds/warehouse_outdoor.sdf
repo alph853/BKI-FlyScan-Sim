@@ -38,53 +38,12 @@
         <step>true</step>
         <start_paused>true</start_paused>
       </plugin>
-      <plugin name="World stats" filename="WorldStats">
-        <ignition-gui>
-          <title>World stats</title>
-          <property type="bool" key="showTitleBar">false</property>
-          <property type="bool" key="resizable">false</property>
-          <property type="double" key="height">110</property>
-          <property type="double" key="width">290</property>
-          <property type="double" key="z">1</property>
-          <property type="string" key="state">floating</property>
-          <anchors target="3D View">
-            <line own="right" target="right" />
-            <line own="bottom" target="bottom" />
-          </anchors>
-        </ignition-gui>
-        <sim_time>true</sim_time>
-        <real_time>true</real_time>
-        <real_time_factor>true</real_time_factor>
-        <iterations>true</iterations>
-      </plugin>
       <plugin name="Transform control" filename="TransformControl">
         <ignition-gui>
           <property type="bool" key="showTitleBar">false</property>
           <property key="x" type="double">0</property>
           <property key="y" type="double">0</property>
           <property key="width" type="double">250</property>
-          <property key="height" type="double">50</property>
-          <property key="state" type="string">floating</property>
-          <property key="cardBackground" type="string">#666666</property>
-        </ignition-gui>
-      </plugin>
-      <plugin name="Shapes" filename="Shapes">
-        <ignition-gui>
-          <property type="bool" key="showTitleBar">false</property>
-          <property key="x" type="double">250</property>
-          <property key="y" type="double">0</property>
-          <property key="width" type="double">150</property>
-          <property key="height" type="double">50</property>
-          <property key="state" type="string">floating</property>
-          <property key="cardBackground" type="string">#666666</property>
-        </ignition-gui>
-      </plugin>
-      <plugin name="Screenshot" filename="Screenshot">
-        <ignition-gui>
-          <property type="bool" key="showTitleBar">false</property>
-          <property key="x" type="double">400</property>
-          <property key="y" type="double">0</property>
-          <property key="width" type="double">50</property>
           <property key="height" type="double">50</property>
           <property key="state" type="string">floating</property>
           <property key="cardBackground" type="string">#666666</property>

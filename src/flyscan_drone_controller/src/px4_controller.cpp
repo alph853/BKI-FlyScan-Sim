@@ -15,6 +15,7 @@
 #include <csignal>
 #include <cmath>
 #include <future>
+#include <complex>
 
 #include <rclcpp/logging.hpp>
 #include <rclcpp/rate.hpp>
@@ -39,13 +40,22 @@ PX4Controller::PX4Controller(const rclcpp::NodeOptions & options,
     RCLCPP_INFO(this->get_logger(), "Initializing Advanced PX4 Controller Node: %s", node_name.c_str());
     
     // Declare ROS parameters with default values
-    this->declare_parameter("setpoint_rate_ms", 50);
-    this->declare_parameter("takeoff_altitude", -1.5f);  // NED frame (negative is up)
-    this->declare_parameter("position_step", 0.5f);      // meters per step
-    this->declare_parameter("yaw_step", 15.0f);          // degrees per step
-    this->declare_parameter("eight_shape_speed", 0.5f);  // m/s for 8-shape pattern
-    this->declare_parameter("initial_control_mode", static_cast<int>(ControlMode::kManual));
-    
+    if (!this->has_parameter("setpoint_rate_ms")) {
+        this->declare_parameter("setpoint_rate_ms", 50);
+    }
+    if (!this->has_parameter("takeoff_altitude")) {
+        this->declare_parameter("takeoff_altitude", 1.5);
+    }
+    if (!this->has_parameter("teleop_position_step")) {
+        this->declare_parameter("teleop_position_step", 0.5);
+    }
+    if (!this->has_parameter("yaw_step")) {
+        this->declare_parameter("yaw_step", 15.0);
+    }
+    if (!this->has_parameter("initial_control_mode")) {
+        this->declare_parameter("initial_control_mode", static_cast<int>(ControlMode::kManual));
+    }
+
     RCLCPP_INFO(this->get_logger(), "Starting with parameter-based configuration - use set_control_mode service to switch modes");
 }
 
@@ -71,12 +81,12 @@ OperationStatus PX4Controller::HandleConfigure() {
         // Cache ROS parameters
         setpoint_rate_ms_ = this->get_parameter("setpoint_rate_ms").as_int();
         takeoff_altitude_ = this->get_parameter("takeoff_altitude").as_double();
-        position_step_ = this->get_parameter("position_step").as_double();
+        teleop_position_step_ = this->get_parameter("teleop_position_step").as_double();
         yaw_step_ = this->get_parameter("yaw_step").as_double();
         initial_control_mode_ = static_cast<ControlMode>(this->get_parameter("initial_control_mode").as_int());
-        
-        RCLCPP_INFO(this->get_logger(), "Cached parameters: setpoint_rate=%dms, takeoff_alt=%.2f, pos_step=%.2f, yaw_step=%.1f, initial_mode=%s",
-                   setpoint_rate_ms_, takeoff_altitude_, position_step_, yaw_step_, 
+
+        RCLCPP_INFO(this->get_logger(), "Cached parameters: setpoint_rate=%dms, takeoff_alt=%.2f, pos_step=%.2f, yaw_step=%.1f,initial_mode=%s",
+                   setpoint_rate_ms_, takeoff_altitude_, teleop_position_step_, yaw_step_,
                    ControlModeToString(initial_control_mode_).c_str());
                    
         auto qos = rclcpp::QoS(10).reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
@@ -419,43 +429,65 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
         return;
     }
 
+    // Get current yaw for body frame transformation
+    float current_yaw_rad = 0.0f;
+    {
+        std::lock_guard<std::mutex> position_lock(position_mutex_);
+        current_yaw_rad = current_position_.heading;
+    }
+    
     std::lock_guard<std::mutex> pos_lock(position_setpoint_mutex_);
     
     if (msg->command == "hold_position" || msg->command == "stop") {
         RCLCPP_INFO(this->get_logger(), "Holding current position");
-    } else {
-        // Apply movement commands (step-based movement)
+        return;
+    }
+
+    // Apply movement commands using first-person pov
+    if (msg->command == "forward" || msg->command == "backward" || msg->command == "right" || msg->command == "left") {
+        // Define body frame movements
+        float body_x = 0.0f; // forward/backward
+        float body_y = 0.0f; // left/right
         
         if (msg->command == "forward") {
-            current_position_setpoint_.north_m += position_step_;
+            body_x = teleop_position_step_;
         } else if (msg->command == "backward") {
-            current_position_setpoint_.north_m -= position_step_;
+            body_x = -teleop_position_step_;
         } else if (msg->command == "right") {
-            current_position_setpoint_.east_m += position_step_;
+            body_y = teleop_position_step_;
         } else if (msg->command == "left") {
-            current_position_setpoint_.east_m -= position_step_;
-        } else if (msg->command == "up") {
-            current_position_setpoint_.down_m -= position_step_;
-        } else if (msg->command == "down") {
-            current_position_setpoint_.down_m += position_step_;
-        } else if (msg->command == "yaw_right") {
-            current_position_setpoint_.yaw_deg += yaw_step_;
-            // Normalize yaw to [-180, 180]
-            while (current_position_setpoint_.yaw_deg > 180.0f) {
-                current_position_setpoint_.yaw_deg -= 360.0f;
-            }
-        } else if (msg->command == "yaw_left") {
-            current_position_setpoint_.yaw_deg -= yaw_step_;
-            // Normalize yaw to [-180, 180]
-            while (current_position_setpoint_.yaw_deg < -180.0f) {
-                current_position_setpoint_.yaw_deg += 360.0f;
-            }
+            body_y = -teleop_position_step_;
         }
 
-        RCLCPP_INFO(this->get_logger(), "Updated teleop setpoint: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
-                    current_position_setpoint_.north_m, current_position_setpoint_.east_m, 
-                    current_position_setpoint_.down_m, current_position_setpoint_.yaw_deg);
+        // Transform body frame to world frame using current yaw
+        float world_x, world_y;
+        this->TransformBodyToWorld(body_x, body_y, current_yaw_rad, world_x, world_y);
+        
+        // Apply the transformed movement to world frame coordinates
+        current_position_setpoint_.north_m += world_x;
+        current_position_setpoint_.east_m += world_y;
+        
+    } else if (msg->command == "up") {
+        current_position_setpoint_.down_m -= teleop_position_step_;
+    } else if (msg->command == "down") {
+        current_position_setpoint_.down_m += teleop_position_step_;
+    } else if (msg->command == "yaw_right") {
+        current_position_setpoint_.yaw_deg += yaw_step_;
+        // Normalize yaw to [-180, 180]
+        while (current_position_setpoint_.yaw_deg > 180.0f) {
+            current_position_setpoint_.yaw_deg -= 360.0f;
+        }
+    } else if (msg->command == "yaw_left") {
+        current_position_setpoint_.yaw_deg -= yaw_step_;
+        // Normalize yaw to [-180, 180]
+        while (current_position_setpoint_.yaw_deg < -180.0f) {
+            current_position_setpoint_.yaw_deg += 360.0f;
+        }
     }
+
+    RCLCPP_INFO(this->get_logger(), "Updated teleop setpoint (first-person): N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f (current_yaw=%.1f°)", 
+                current_position_setpoint_.north_m, current_position_setpoint_.east_m, 
+                current_position_setpoint_.down_m, current_position_setpoint_.yaw_deg, current_yaw_rad * 180.0f / M_PI);
 }
 
 OperationStatus PX4Controller::StartOffboardMode() 
@@ -559,6 +591,17 @@ void PX4Controller::SendArmDisarmCommand(bool arm_vehicle) {
     float param1 = arm_vehicle ? 1.0f : 0.0f;
     PublishVehicleCommand(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, param1);
     RCLCPP_INFO(this->get_logger(), "Sent %s command to vehicle", arm_vehicle ? "ARM" : "DISARM");
+}
+
+void PX4Controller::TransformBodyToWorld(float body_x, float body_y, float current_yaw_rad, float& world_x, float& world_y) {
+    float cos_yaw = std::cos(current_yaw_rad);
+    float sin_yaw = std::sin(current_yaw_rad);
+    
+    world_x = body_x * cos_yaw - body_y * sin_yaw;
+    world_y = body_x * sin_yaw + body_y * cos_yaw;
+    // auto rotated = std::polar(1.0f, current_yaw_rad) * std::complex<float>(body_x, body_y);
+    // world_x = rotated.real();
+    // world_y = rotated.imag();
 }
 
 

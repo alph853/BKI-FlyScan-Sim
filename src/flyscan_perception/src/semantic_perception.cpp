@@ -14,6 +14,7 @@
 #include <future>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include "flyscan_perception/semantic_perception.hpp"
 #include "flyscan_common/sigint_handler.hpp"
@@ -52,6 +53,9 @@ SemanticPerception::SemanticPerception(const rclcpp::NodeOptions& options,
     if (!this->has_parameter("model_path")) {
         this->declare_parameter("model_path", "src/flyscan_perception/best.onnx");
     }
+    if (!this->has_parameter("qr_position_threshold")) {
+        this->declare_parameter("qr_position_threshold", 1.0);  // 1 meter threshold
+    }
 
     RCLCPP_INFO(this->get_logger(), "Starting with parameter-based configuration");
 }
@@ -78,8 +82,13 @@ flyscan::common::OperationStatus SemanticPerception::HandleConfigure()
         nms_threshold_  = this->get_parameter("nms_threshold").as_double();
         camera_frame_   = this->get_parameter("camera_frame").as_string();
         gpu_enabled_    = this->get_parameter("gpu_enabled").as_bool();
+        qr_position_threshold_ = this->get_parameter("qr_position_threshold").as_double();
 
         std::string model_path = this->get_parameter("model_path").as_string();
+        
+        // Initialize TF2 components
+        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
         RCLCPP_INFO(this->get_logger(), "Cached parameters: frame_skip=%d, conf_thresh=%.2f, nms_thresh=%.2f, model=%s",
                    inference_frame_skip_, confidence_threshold_, nms_threshold_, model_path.c_str());
@@ -153,12 +162,22 @@ flyscan::common::OperationStatus SemanticPerception::HandleCleanup()
     camera_info_subscription_.reset();
     detection_publisher_.reset();
     qr_position_publisher_.reset();
+    
+    // Clear TF2 components
+    tf_listener_.reset();
+    tf_buffer_.reset();
 
     // Clear YOLO model
     ort_session_.reset();
     ort_env_.reset();
     session_options_.reset();
     yolo_initialized_ = false;
+    
+    // Clear QR records
+    {
+        std::lock_guard<std::mutex> lock(qr_records_mutex_);
+        processed_qr_codes_.clear();
+    }
     
     RCLCPP_INFO(this->get_logger(), "Semantic Perception cleanup complete");
     return flyscan::common::OperationStatus::kOK;
@@ -211,11 +230,31 @@ void SemanticPerception::VideoCallback(const sensor_msgs::msg::Image::SharedPtr 
                         }
 
                         if (!depth_image.empty() && cam_info) {
-                            auto qr_position = LocalizeQrPosition(detection, depth_image, *cam_info);
-                            qr_position_publisher_->publish(qr_position);
-
-                            // Send HTTP request for QR code
-                            SendQrHttpRequest(detection.decoded_data);
+                            auto qr_position_camera = LocalizeQrPosition(detection, depth_image, *cam_info);
+                            
+                            // Transform to map frame and publish
+                            try {
+                                geometry_msgs::msg::PointStamped qr_position_map;
+                                qr_position_map.header.stamp = this->now();
+                                qr_position_map.header.frame_id = "map";
+                                
+                                // Transform from camera frame to map frame
+                                auto transform = tf_buffer_->lookupTransform("map", camera_frame_, qr_position_camera.header.stamp, rclcpp::Duration::from_seconds(0.1));
+                                geometry_msgs::msg::PointStamped qr_pos_transformed;
+                                tf2::doTransform(qr_position_camera, qr_pos_transformed, transform);
+                                
+                                qr_position_map.point = qr_pos_transformed.point;
+                                qr_position_publisher_->publish(qr_position_map);
+                                
+                                // Send HTTP request for QR code (with deduplication)
+                                SendQrHttpRequest(detection.decoded_data, qr_position_camera.point);
+                                
+                            } catch (const tf2::TransformException& ex) {
+                                RCLCPP_WARN(this->get_logger(), "Failed to transform QR position to map frame: %s", ex.what());
+                                // Publish in camera frame as fallback
+                                qr_position_publisher_->publish(qr_position_camera);
+                                SendQrHttpRequest(detection.decoded_data, qr_position_camera.point);
+                            }
                         }
                     }
                 }
@@ -684,7 +723,37 @@ size_t flyscan::perception::SemanticPerception::WriteCallback(void* contents, si
     return size * nmemb;
 }
 
-void flyscan::perception::SemanticPerception::SendQrHttpRequest(const std::string& qr_data) {
+void flyscan::perception::SemanticPerception::SendQrHttpRequest(const std::string& qr_data, const geometry_msgs::msg::Point& position) {
+    // Check if this is a new QR code to avoid duplicates
+    if (!IsNewQrCode(qr_data, position)) {
+        RCLCPP_DEBUG(this->get_logger(), "Skipping duplicate QR code: %s", qr_data.c_str());
+        return;
+    }
+    
+    // Record this QR code
+    {
+        std::lock_guard<std::mutex> lock(qr_records_mutex_);
+        QrRecord record;
+        record.data = qr_data;
+        record.position = position;
+        record.timestamp = this->now();
+        processed_qr_codes_.push_back(record);
+        
+        // Keep only recent records (last 100 or within 10 minutes)
+        auto cutoff_time = this->now() - rclcpp::Duration::from_seconds(600);
+        processed_qr_codes_.erase(
+            std::remove_if(processed_qr_codes_.begin(), processed_qr_codes_.end(),
+                [&cutoff_time](const QrRecord& record) {
+                    return record.timestamp < cutoff_time;
+                }),
+            processed_qr_codes_.end());
+        
+        if (processed_qr_codes_.size() > 100) {
+            processed_qr_codes_.erase(processed_qr_codes_.begin(), 
+                                    processed_qr_codes_.begin() + (processed_qr_codes_.size() - 100));
+        }
+    }
+    
     CURL* curl;
     CURLcode res;
     std::string response_data;
@@ -729,6 +798,28 @@ void flyscan::perception::SemanticPerception::SendQrHttpRequest(const std::strin
     } else {
         RCLCPP_ERROR(this->get_logger(), "Failed to initialize curl for HTTP request");
     }
+}
+
+bool flyscan::perception::SemanticPerception::IsNewQrCode(const std::string& qr_data, const geometry_msgs::msg::Point& position) {
+    std::lock_guard<std::mutex> lock(qr_records_mutex_);
+    
+    for (const auto& record : processed_qr_codes_) {
+        // If same QR data, check position similarity
+        if (record.data == qr_data) {
+            double distance = std::sqrt(
+                std::pow(record.position.x - position.x, 2) +
+                std::pow(record.position.y - position.y, 2) +
+                std::pow(record.position.z - position.z, 2)
+            );
+            
+            // If within threshold, consider it the same QR code
+            if (distance < qr_position_threshold_) {
+                return false;
+            }
+        }
+    }
+    
+    return true;  // This is a new QR code
 }
 
 } // namespace perception

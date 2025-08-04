@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Script to convert YOLOv8 .pt model to ONNX format for C++ inference
-"""
-
 import torch
 from ultralytics import YOLO
 import onnx
@@ -117,12 +112,17 @@ def convert_yolo_to_onnx(input_path, output_path, img_size=640, simplify=True):
     return True
 
 def main():
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    default_input = os.path.join(current_dir, 'yolov8n.pt')
+    default_output = os.path.join(current_dir, 'yolov8n.onnx')
+
     parser = argparse.ArgumentParser(description='Convert YOLOv8 .pt model to ONNX')
     parser.add_argument('--input', '-i', 
-                       default='src/flyscan_perception/yolov8n.pt',
+                       default=default_input,
                        help='Input .pt model path')
     parser.add_argument('--output', '-o', 
-                       default='src/flyscan_perception/yolov8n.onnx',
+                       default=default_output,
                        help='Output .onnx model path')
     parser.add_argument('--img-size', type=int, default=640,
                        help='Input image size (default: 640)')

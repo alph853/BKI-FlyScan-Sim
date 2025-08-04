@@ -28,7 +28,7 @@ FrontierExplorer::FrontierExplorer(const rclcpp::NodeOptions& options,
     if (!this->has_parameter("exploration_rate")) {
         this->declare_parameter("exploration_rate", 1.0);
     }
-    
+
     RCLCPP_INFO(this->get_logger(), "Starting with parameter-based configuration");
 }
 
@@ -76,18 +76,15 @@ OperationStatus FrontierExplorer::HandleConfigure() {
         // Create publishers
         goal_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
             "/exploration_goal", qos);
-        
+
         frontier_viz_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
             "/frontier_markers", qos);
 
-        // Create callback group for service clients to avoid lifecycle callback conflicts
-        service_callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-        
         // Service clients  
         set_control_mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>(
             "/px4_controller/set_control_mode", 
-            rclcpp::ServicesQoS(), 
-            service_callback_group_);
+            rclcpp::ServicesQoS() 
+        );
         
         RCLCPP_INFO(this->get_logger(), "Created exploration goal and visualization publishers");
         

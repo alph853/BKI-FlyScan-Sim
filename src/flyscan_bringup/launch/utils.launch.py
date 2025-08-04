@@ -43,6 +43,11 @@ def generate_launch_description():
         default_value='false',
         description='Launch semantic perception node if true'
     )
+    frontier_exploration_arg = DeclareLaunchArgument(
+        'frontier_exploration',
+        default_value='false',
+        description='Launch frontier exploration node if true'
+    )
 
     mode = LaunchConfiguration('mode')
     use_sim_time    = LaunchConfiguration('use_sim_time')
@@ -50,6 +55,7 @@ def generate_launch_description():
     life_monitor    = LaunchConfiguration('life_monitor')
     px4_controller  = LaunchConfiguration('px4_controller')
     semantic_perception = LaunchConfiguration('semantic_perception')
+    frontier_exploration = LaunchConfiguration('frontier_exploration')
 
     # --------------------------------------
     # >>> Launch description components >>>
@@ -86,7 +92,7 @@ def generate_launch_description():
             'rgbd_camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image',
             'rgbd_camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
 
-            '/world/warehouse_outdoor/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
+            '/world/warehouse_outdoor/model/x500_flyscan_0/link/base_link/sensor/imu_sensor/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
 
             '/world/warehouse_outdoor/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
             '/clock@rosgraph_msgs/msg/Clock@gz.msgs.Clock',
@@ -97,7 +103,7 @@ def generate_launch_description():
             ('rgbd_camera/depth_image', '/camera/depth/image'),
             ('rgbd_camera/points', '/camera/depth/points'),
             ('/world/warehouse_outdoor/clock', '/clock'),
-            ('/world/warehouse_outdoor/model/x500_depth_0/link/base_link/sensor/imu_sensor/imu', '/imu/data'),
+            ('/world/warehouse_outdoor/model/x500_flyscan_0/link/base_link/sensor/imu_sensor/imu', '/imu/data'),
         ],
         output='screen',
         condition=IfCondition(PythonExpression(["'", mode, "' == 'sim'"]))    
@@ -117,7 +123,7 @@ def generate_launch_description():
             '--qz', '0',
             '--qw', '1',
             '--frame-id', 'base_link',
-            '--child-frame-id', 'x500_depth_0/camera_link/StereoOV7251'
+            '--child-frame-id', 'x500_flyscan_0/camera_link/StereoOV7251'
         ],
         parameters=[{
             'use_sim_time': use_sim_time
@@ -138,7 +144,7 @@ def generate_launch_description():
             '--qz', '0',
             '--qw', '1',
             '--frame-id', 'base_link',
-            '--child-frame-id', 'x500_depth_0/base_link/imu_sensor'
+            '--child-frame-id', 'x500_flyscan_0/base_link/imu_sensor'
         ],
         parameters=[{
             'use_sim_time': use_sim_time
@@ -222,10 +228,21 @@ def generate_launch_description():
         name='semantic_perception',
         parameters=[
             {'use_sim_time': use_sim_time},
-            {"camera_frame": "x500_depth_0/camera_link/StereoOV7251"},
+            {"camera_frame": "x500_flyscan_0/camera_link/StereoOV7251"},
         ],
         output='screen',
         condition=IfCondition(semantic_perception)
+    )
+
+    frontier_explorer_node = Node(
+        package='flyscan_exploration',
+        executable='frontier_explorer',
+        name='frontier_explorer',
+        parameters=[
+            {'use_sim_time': use_sim_time},
+        ],
+        output='screen',
+        condition=IfCondition(frontier_exploration)
     )
 
     return LaunchDescription([
@@ -235,6 +252,7 @@ def generate_launch_description():
         life_monitor_arg,
         px4_controller_arg,
         semantic_perception_arg,
+        frontier_exploration_arg,
         px4_ros_bridge_node,
         gz_bridge_node,
         static_tf_camera_to_base,
@@ -246,6 +264,7 @@ def generate_launch_description():
         TimerAction(period=3.0, actions=(
             px4_controller_node,
             semantic_perception_node,
+            frontier_explorer_node,
         )),
         rtabmap_launcher,
     ])
