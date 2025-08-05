@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cmath>
 
 #include "flyscan_exploration/frontier_explorer.hpp"
@@ -13,23 +12,29 @@ FrontierExplorer::FrontierExplorer(const rclcpp::NodeOptions& options,
                                    const std::vector<std::string>& capabilities)
     : BaseNode(options, node_name, node_type, capabilities)
     , exploration_active_(false)
+    , exploration_complete_(false)
 {
-    RCLCPP_INFO(this->get_logger(), "Initializing Frontier Explorer Node: %s", node_name.c_str());
+    RCLCPP_INFO(this->get_logger(), "Initializing Smart Frontier Explorer Node: %s", node_name.c_str());
     
+    // Original parameters
     if (!this->has_parameter("exploration_radius")) {
         this->declare_parameter("exploration_radius", 10.0);
-    }
-    if (!this->has_parameter("min_frontier_size")) {
-        this->declare_parameter("min_frontier_size", 5.0);
-    }
-    if (!this->has_parameter("frontier_cluster_distance")) {
-        this->declare_parameter("frontier_cluster_distance", 2.0);
     }
     if (!this->has_parameter("exploration_rate")) {
         this->declare_parameter("exploration_rate", 1.0);
     }
+    
+    if (!this->has_parameter("max_frontier_distance")) {
+        this->declare_parameter("max_frontier_distance", 50.0);
+    }
+    if (!this->has_parameter("robot_frame")) {
+        this->declare_parameter("robot_frame", "base_link");
+    }
+    if (!this->has_parameter("map_frame")) {
+        this->declare_parameter("map_frame", "map");
+    }
 
-    RCLCPP_INFO(this->get_logger(), "Starting with parameter-based configuration");
+    RCLCPP_INFO(this->get_logger(), "Simple Frontier Explorer initialized");
 }
 
 FrontierExplorer::~FrontierExplorer() {
@@ -49,12 +54,13 @@ OperationStatus FrontierExplorer::HandleConfigure() {
     try {
         // Cache ROS parameters
         exploration_radius_ = this->get_parameter("exploration_radius").as_double();
-        min_frontier_size_ = this->get_parameter("min_frontier_size").as_double();
-        frontier_cluster_distance_ = this->get_parameter("frontier_cluster_distance").as_double();
         exploration_rate_ = this->get_parameter("exploration_rate").as_double();
+        max_frontier_distance_ = this->get_parameter("max_frontier_distance").as_double();
+        robot_frame_ = this->get_parameter("robot_frame").as_string();
+        map_frame_ = this->get_parameter("map_frame").as_string();
 
-        RCLCPP_INFO(this->get_logger(), "Cached parameters: radius=%.2f, min_size=%.1f, cluster_dist=%.2f, rate=%.2f",
-                   exploration_radius_, min_frontier_size_, frontier_cluster_distance_, exploration_rate_);
+        RCLCPP_INFO(this->get_logger(), "Cached parameters: radius=%.2f, rate=%.2f, max_distance=%.2f",
+                   exploration_radius_, exploration_rate_, max_frontier_distance_);
     
         // Initialize TF components
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -210,7 +216,7 @@ void FrontierExplorer::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg
 }
 
 void FrontierExplorer::explorationTimerCallback() {
-    if (!exploration_active_) {
+    if (!exploration_active_ || exploration_complete_) {
         return;
     }
     
@@ -225,184 +231,44 @@ void FrontierExplorer::explorationTimerCallback() {
         map = current_map_;
     }
     
-    nav_msgs::msg::Odometry::SharedPtr odom;
-    {
-        std::lock_guard<std::mutex> lock(odom_mutex_);
-        if (!current_odom_) {
-            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, 
-                                "No odometry received yet, waiting...");
-            return;
-        }
-        odom = current_odom_;
-    }
-    
-    auto frontiers = detectFrontiers(*map);
-    
-    if (frontiers.empty()) {
-        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000, 
-                            "No frontiers detected, exploration may be complete");
+    if (!UpdateRobotPosition()) {
+        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, 
+                            "Could not get robot position, waiting...");
         return;
     }
-
-    publishFrontierVisualization(frontiers);
-
-    auto best_frontier = selectBestFrontier(frontiers);
-    publishExplorationGoal(best_frontier);
-
-    RCLCPP_INFO(get_logger(), "Published exploration goal to frontier at (%.2f, %.2f) with value %.2f",
-               best_frontier.center.x, best_frontier.center.y, best_frontier.exploration_value);
-}
-
-std::vector<Frontier> FrontierExplorer::detectFrontiers(const nav_msgs::msg::OccupancyGrid& map) {
-    cv_bridge::CvImage cv_image;
-    cv_image.header = map.header;
-    cv_image.encoding = "mono8";
-    cv_image.image = cv::Mat(map.info.height, map.info.width, CV_8UC1);
     
-    for (size_t i = 0; i < map.data.size(); ++i) {
-        int value = map.data[i];
-        if (value == -1) {
-            cv_image.image.data[i] = 127;
-        } else if (value == 0) {
-            cv_image.image.data[i] = 255;
-        } else {
-            cv_image.image.data[i] = 0;
-        }
-    }
+    // Use simple frontier detection
+    auto frontiers = DetectSimpleFrontiers(*map);
     
-    auto frontier_cells = findFrontierCells(cv_image.image);
-    auto frontiers = clusterFrontierCells(frontier_cells, map);
-    
-    std::vector<Frontier> valid_frontiers;
-    for (auto& frontier : frontiers) {
-        if (frontier.size >= min_frontier_size_) {
-            frontier.distance_to_robot = std::sqrt(
-                std::pow(frontier.center.x - robot_position_.x, 2) +
-                std::pow(frontier.center.y - robot_position_.y, 2));
-            
-            if (frontier.distance_to_robot <= exploration_radius_) {
-                frontier.exploration_value = calculateExplorationValue(frontier);
-                valid_frontiers.push_back(frontier);
-            }
-        }
-    }
-    
-    return valid_frontiers;
-}
-
-std::vector<cv::Point> FrontierExplorer::findFrontierCells(const cv::Mat& map_image) {
-    std::vector<cv::Point> frontier_cells;
-    
-    for (int y = 1; y < map_image.rows - 1; ++y) {
-        for (int x = 1; x < map_image.cols - 1; ++x) {
-            if (isFrontierCell(x, y, map_image)) {
-                frontier_cells.emplace_back(x, y);
-            }
-        }
-    }
-    
-    return frontier_cells;
-}
-
-bool FrontierExplorer::isFrontierCell(int x, int y, const cv::Mat& map) const {
-    if (map.at<uint8_t>(y, x) != 127) {
-        return false;
-    }
-    
-    for (int dy = -1; dy <= 1; ++dy) {
-        for (int dx = -1; dx <= 1; ++dx) {
-            if (dx == 0 && dy == 0) continue;
-            
-            int nx = x + dx;
-            int ny = y + dy;
-            
-            if (isValidCell(nx, ny, map) && map.at<uint8_t>(ny, nx) == 255) {
-                return true;
-            }
-        }
-    }
-    
-    return false;
-}
-
-bool FrontierExplorer::isValidCell(int x, int y, const cv::Mat& map) const {
-    return x >= 0 && x < map.cols && y >= 0 && y < map.rows;
-}
-
-std::vector<Frontier> FrontierExplorer::clusterFrontierCells(const std::vector<cv::Point>& frontier_cells,
-                                                             const nav_msgs::msg::OccupancyGrid& map) {
-    std::vector<Frontier> frontiers;
-    std::vector<bool> visited(frontier_cells.size(), false);
-    
-    for (size_t i = 0; i < frontier_cells.size(); ++i) {
-        if (visited[i]) continue;
-        
-        Frontier frontier;
-        std::vector<size_t> cluster_indices;
-        std::queue<size_t> queue;
-        
-        queue.push(i);
-        visited[i] = true;
-        
-        while (!queue.empty()) {
-            size_t current = queue.front();
-            queue.pop();
-            cluster_indices.push_back(current);
-            
-            for (size_t j = 0; j < frontier_cells.size(); ++j) {
-                if (visited[j]) continue;
-                
-                double distance = std::sqrt(
-                    std::pow(frontier_cells[current].x - frontier_cells[j].x, 2) +
-                    std::pow(frontier_cells[current].y - frontier_cells[j].y, 2));
-                
-                if (distance <= frontier_cluster_distance_ / map.info.resolution) {
-                    visited[j] = true;
-                    queue.push(j);
-                }
-            }
-        }
-        
-        if (!cluster_indices.empty()) {
-            double sum_x = 0, sum_y = 0;
-            for (size_t idx : cluster_indices) {
-                auto world_point = mapToWorld(frontier_cells[idx].x, frontier_cells[idx].y, map);
-                frontier.points.push_back(world_point);
-                sum_x += world_point.x;
-                sum_y += world_point.y;
-            }
-            
-            frontier.center.x = sum_x / cluster_indices.size();
-            frontier.center.y = sum_y / cluster_indices.size();
-            frontier.center.z = 0.0;
-            frontier.size = cluster_indices.size();
-            
-            frontiers.push_back(frontier);
-        }
-    }
-    
-    return frontiers;
-}
-
-Frontier FrontierExplorer::selectBestFrontier(const std::vector<Frontier>& frontiers) {
     if (frontiers.empty()) {
-        return Frontier();
+        RCLCPP_INFO(get_logger(), "No frontiers detected - exploration complete!");
+        exploration_complete_ = true;
+        return;
     }
     
-    auto best_it = std::max_element(frontiers.begin(), frontiers.end(),
-        [](const Frontier& a, const Frontier& b) {
-            return a.exploration_value < b.exploration_value;
-        });
+    // Select closest frontier
+    auto best_frontier = SelectClosestFrontier(frontiers);
     
-    return *best_it;
+    if (best_frontier) {
+        publishFrontierVisualization({*best_frontier});
+        
+        publishExplorationGoal(*best_frontier);
+        
+        RCLCPP_INFO(get_logger(), 
+            "Published goal to frontier at (%.2f, %.2f), distance: %.2f",
+            best_frontier->center.x, best_frontier->center.y, best_frontier->distance_to_robot);
+    } else {
+        RCLCPP_INFO(get_logger(), "No suitable frontiers found - exploration complete!");
+        exploration_complete_ = true;
+    }
 }
 
-double FrontierExplorer::calculateExplorationValue(const Frontier& frontier) const {
-    double size_factor = frontier.size / 100.0;
-    double distance_factor = std::max(0.1, 1.0 / (1.0 + frontier.distance_to_robot));
-    
-    return size_factor * distance_factor;
-}
+
+
+
+
+
+
 
 void FrontierExplorer::publishExplorationGoal(const Frontier& frontier) {
     geometry_msgs::msg::PoseStamped goal;
@@ -444,20 +310,161 @@ void FrontierExplorer::publishFrontierVisualization(const std::vector<Frontier>&
     frontier_viz_publisher_->publish(marker_array);
 }
 
-geometry_msgs::msg::Point FrontierExplorer::mapToWorld(int map_x, int map_y, 
-                                                       const nav_msgs::msg::OccupancyGrid& map) const {
-    geometry_msgs::msg::Point world_point;
-    world_point.x = map.info.origin.position.x + map_x * map.info.resolution;
-    world_point.y = map.info.origin.position.y + map_y * map.info.resolution;
-    world_point.z = 0.0;
-    return world_point;
+
+
+// ============================================================================
+// Simple Frontier Detection Implementation
+// ============================================================================
+
+std::vector<Frontier> FrontierExplorer::DetectSimpleFrontiers(const nav_msgs::msg::OccupancyGrid& grid) {
+    std::vector<Frontier> frontiers;
+    
+    int width = grid.info.width;
+    int height = grid.info.height;
+    
+    RCLCPP_DEBUG(get_logger(), "Detecting frontiers in %dx%d grid", width, height);
+    
+    // Find frontier cells: free cells adjacent to unknown cells
+    for (int y = 1; y < height - 1; ++y) {
+        for (int x = 1; x < width - 1; ++x) {
+            int index = y * width + x;
+            
+            // Check if current cell is free (0-50 range)
+            if (grid.data[index] >= 0 && grid.data[index] < 50) {
+                
+                // Check 8-connected neighbors for unknown cells (-1)
+                bool has_unknown_neighbor = false;
+                for (int dy = -1; dy <= 1; ++dy) {
+                    for (int dx = -1; dx <= 1; ++dx) {
+                        if (dx == 0 && dy == 0) continue;
+                        
+                        int neighbor_x = x + dx;
+                        int neighbor_y = y + dy;
+                        int neighbor_index = neighbor_y * width + neighbor_x;
+                        
+                        if (grid.data[neighbor_index] == -1) {
+                            has_unknown_neighbor = true;
+                            break;
+                        }
+                    }
+                    if (has_unknown_neighbor) break;
+                }
+                
+                // If this free cell has unknown neighbors, it's a frontier
+                if (has_unknown_neighbor) {
+                    Frontier frontier;
+                    
+                    // Convert grid coordinates to world coordinates
+                    frontier.center.x = grid.info.origin.position.x + x * grid.info.resolution;
+                    frontier.center.y = grid.info.origin.position.y + y * grid.info.resolution;
+                    frontier.center.z = 0.0;
+                    
+                    // Calculate distance to robot
+                    double dx = frontier.center.x - robot_position_.x;
+                    double dy = frontier.center.y - robot_position_.y;
+                    frontier.distance_to_robot = sqrt(dx*dx + dy*dy);
+                    
+                    // Skip if too far
+                    if (frontier.distance_to_robot > max_frontier_distance_) {
+                        continue;
+                    }
+                    
+                    frontier.size = 1.0;
+                    frontier.exploration_value = 1.0 / (1.0 + frontier.distance_to_robot);
+                    
+                    frontiers.push_back(frontier);
+                }
+            }
+        }
+    }
+    
+    RCLCPP_INFO(get_logger(), "Found %zu raw frontier cells", frontiers.size());
+    
+    // Simple clustering: group nearby frontiers
+    return GroupNearbyFrontiers(frontiers, grid.info.resolution * 5.0); // 5 grid cells
 }
 
-cv::Point FrontierExplorer::worldToMap(double world_x, double world_y, 
-                                       const nav_msgs::msg::OccupancyGrid& map) const {
-    int map_x = static_cast<int>((world_x - map.info.origin.position.x) / map.info.resolution);
-    int map_y = static_cast<int>((world_y - map.info.origin.position.y) / map.info.resolution);
-    return cv::Point(map_x, map_y);
+std::vector<Frontier> FrontierExplorer::GroupNearbyFrontiers(const std::vector<Frontier>& raw_frontiers, double group_distance) {
+    if (raw_frontiers.empty()) return {};
+    
+    std::vector<Frontier> grouped_frontiers;
+    std::vector<bool> used(raw_frontiers.size(), false);
+    
+    for (size_t i = 0; i < raw_frontiers.size(); ++i) {
+        if (used[i]) continue;
+        
+        Frontier group;
+        group.center = raw_frontiers[i].center;
+        group.distance_to_robot = raw_frontiers[i].distance_to_robot;
+        group.size = 1.0;
+        
+        double sum_x = raw_frontiers[i].center.x;
+        double sum_y = raw_frontiers[i].center.y;
+        int count = 1;
+        used[i] = true;
+        
+        // Find nearby frontiers to group together
+        for (size_t j = i + 1; j < raw_frontiers.size(); ++j) {
+            if (used[j]) continue;
+            
+            double dx = raw_frontiers[i].center.x - raw_frontiers[j].center.x;
+            double dy = raw_frontiers[i].center.y - raw_frontiers[j].center.y;
+            double distance = sqrt(dx*dx + dy*dy);
+            
+            if (distance <= group_distance) {
+                sum_x += raw_frontiers[j].center.x;
+                sum_y += raw_frontiers[j].center.y;
+                count++;
+                used[j] = true;
+            }
+        }
+        
+        // Update group center to average position
+        group.center.x = sum_x / count;
+        group.center.y = sum_y / count;
+        group.size = count;
+        
+        // Recalculate distance to robot from group center
+        double dx = group.center.x - robot_position_.x;
+        double dy = group.center.y - robot_position_.y;
+        group.distance_to_robot = sqrt(dx*dx + dy*dy);
+        group.exploration_value = group.size / (1.0 + group.distance_to_robot);
+        
+        grouped_frontiers.push_back(group);
+    }
+    
+    RCLCPP_INFO(get_logger(), "Grouped %zu frontiers into %zu clusters", 
+                raw_frontiers.size(), grouped_frontiers.size());
+    
+    return grouped_frontiers;
+}
+
+std::shared_ptr<Frontier> FrontierExplorer::SelectClosestFrontier(const std::vector<Frontier>& frontiers) {
+    if (frontiers.empty()) return nullptr;
+    
+    auto closest = std::min_element(frontiers.begin(), frontiers.end(),
+        [](const Frontier& a, const Frontier& b) {
+            return a.distance_to_robot < b.distance_to_robot;
+        });
+    
+    return std::make_shared<Frontier>(*closest);
+}
+
+
+bool FrontierExplorer::UpdateRobotPosition() {
+    try {
+        auto transform = tf_buffer_->lookupTransform(map_frame_, robot_frame_, tf2::TimePointZero);
+        
+        robot_position_.x = transform.transform.translation.x;
+        robot_position_.y = transform.transform.translation.y;
+        robot_position_.z = 0.0;
+        
+        return true;
+    } catch (tf2::TransformException& ex) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *get_clock(), 5000, 
+                            "Could not get robot position: %s", ex.what());
+        return false;
+    }
 }
 
 } // namespace exploration

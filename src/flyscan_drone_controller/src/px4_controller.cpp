@@ -342,6 +342,10 @@ void PX4Controller::ExplorationGoalCallback(const geometry_msgs::msg::PoseStampe
         current_position_setpoint_.north_m = msg->pose.position.x;
         current_position_setpoint_.east_m = msg->pose.position.y;
         current_position_setpoint_.down_m = msg->pose.position.z;
+
+        if (current_position_setpoint_.down_m == 0.0) {
+            current_position_setpoint_.down_m = current_position_.z;
+        }
         
         tf2::Quaternion q(
             msg->pose.orientation.x,

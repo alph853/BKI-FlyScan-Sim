@@ -61,7 +61,7 @@ def generate_launch_description():
     )
 
     # PX4 SITL command
-    px4_cmd = f'cd {PX4_DIR} && make px4_sitl_default gz_x500_flyscan_{GZ_WORLD}'
+    px4_cmd = f'cd {PX4_DIR} && PX4_GZ_WORLD={GZ_WORLD} PX4_SYS_AUTOSTART=22999 PX4_GZ_MODEL_POSE="{SWARM[0].pose}" ./build/px4_sitl_default/bin/px4 -i {SWARM[0].id}'
     px4_sitl = ExecuteProcess(
         cmd=['bash', '-c', px4_cmd],
         output='screen',

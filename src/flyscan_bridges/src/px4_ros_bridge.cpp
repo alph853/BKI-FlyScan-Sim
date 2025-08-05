@@ -6,10 +6,12 @@
  */
 
 #include "flyscan_bridges/px4_ros_bridge.hpp"
+#include "flyscan_bridges/transform.hpp"
 
 PX4ROSBridge::PX4ROSBridge()
 : Node("px4_ros_bridge")
 {
+  using namespace std::placeholders;
   // Declare and get parameters
   if (!this->has_parameter("use_sim_time")) {
       this->declare_parameter("use_sim_time", false);
@@ -19,7 +21,7 @@ PX4ROSBridge::PX4ROSBridge()
   vehicle_odom_sub_ = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
     "/fmu/out/vehicle_odometry",
     rclcpp::SensorDataQoS(),
-    std::bind(&PX4ROSBridge::vehicleOdomCallback, this, std::placeholders::_1)
+    std::bind(&PX4ROSBridge::vehicleOdomCallback, this, _1)
   );
 
   odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
@@ -36,27 +38,32 @@ void PX4ROSBridge::vehicleOdomCallback(const px4_msgs::msg::VehicleOdometry::Sha
   odom_msg.header.stamp = this->get_clock()->now();
   odom_msg.header.frame_id = "odom";
   odom_msg.child_frame_id = "base_link";
-
+\
   // Position: NED to ENU conversion
-  odom_msg.pose.pose.position.x = msg->position[1];  // East = NED_Y
-  odom_msg.pose.pose.position.y = msg->position[0];  // North = NED_X
-  odom_msg.pose.pose.position.z = -msg->position[2]; // Up = -NED_Z
+  odom_msg.pose.pose.position.x = msg->position[1];
+  odom_msg.pose.pose.position.y = msg->position[0];
+  odom_msg.pose.pose.position.z = -msg->position[2];
   
-  // Linear velocity: NED to ENU conversion
-  odom_msg.twist.twist.linear.x = msg->velocity[1];  // East = NED_Y
-  odom_msg.twist.twist.linear.y = msg->velocity[0];  // North = NED_X
-  odom_msg.twist.twist.linear.z = -msg->velocity[2]; // Up = -NED_Z
-  
-  // Angular velocity: NED to ENU conversion
-  odom_msg.twist.twist.angular.x = msg->angular_velocity[1];  // East = NED_Y
-  odom_msg.twist.twist.angular.y = msg->angular_velocity[0];  // North = NED_X
-  odom_msg.twist.twist.angular.z = -msg->angular_velocity[2]; // Up = -NED_Z
+  // Linear + angular velocity: FRD to FLU conversion
+  odom_msg.twist.twist.linear.x = msg->velocity[0];  
+  odom_msg.twist.twist.linear.y = -msg->velocity[1];  
+  odom_msg.twist.twist.linear.z = -msg->velocity[2]; 
+  odom_msg.twist.twist.angular.x = msg->angular_velocity[0];  
+  odom_msg.twist.twist.angular.y = -msg->angular_velocity[1];  
+  odom_msg.twist.twist.angular.z = -msg->angular_velocity[2]; 
 
-  // Orientation: NED to ENU quaternion conversion
-  odom_msg.pose.pose.orientation.w = msg->q[0];
-  odom_msg.pose.pose.orientation.x = msg->q[2];  // NED Y -> ENU X
-  odom_msg.pose.pose.orientation.y = msg->q[1];  // NED X -> ENU Y
-  odom_msg.pose.pose.orientation.z = -msg->q[3]; // NED Z -> -ENU Z
+  // Orientation: NED to FLU quaternion conversion  
+  Eigen::Quaterniond q;
+  q.w() = msg->q[0];
+  q.x() = msg->q[1]; 
+  q.y() = msg->q[2];
+  q.z() = msg->q[3];
+  auto rotated_q = NED_TO_ENU_Q * q * FRD_TO_FLU_Q;
+
+  odom_msg.pose.pose.orientation.w = rotated_q.w();
+  odom_msg.pose.pose.orientation.x = rotated_q.x();
+  odom_msg.pose.pose.orientation.y = rotated_q.y();
+  odom_msg.pose.pose.orientation.z = rotated_q.z();
 
   // Publish odometry message
   odom_pub_->publish(odom_msg);

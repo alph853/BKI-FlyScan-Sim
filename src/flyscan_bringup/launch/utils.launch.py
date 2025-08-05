@@ -253,15 +253,19 @@ def generate_launch_description():
         px4_controller_arg,
         semantic_perception_arg,
         frontier_exploration_arg,
-        px4_ros_bridge_node,
-        gz_bridge_node,
+
         static_tf_camera_to_base,
         static_tf_imu_to_base,
+        rviz2,
+
+        px4_ros_bridge_node,
+        gz_bridge_node,
         visualization_node,
         video_streamer_node,
-        rviz2,
+
         life_monitor_node,
-        TimerAction(period=3.0, actions=(
+
+        TimerAction(period=5.0, actions=(
             px4_controller_node,
             semantic_perception_node,
             frontier_explorer_node,

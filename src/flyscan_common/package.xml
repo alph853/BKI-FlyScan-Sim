@@ -9,6 +9,7 @@
 
   <!-- Build tool dependencies -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>eigen3_cmake_module</buildtool_depend>
 
   <!-- Dependencies -->
   <depend>rclcpp</depend>
@@ -17,6 +18,9 @@
   <depend>rclcpp_lifecycle</depend>
   <depend>rclcpp_action</depend>
   <depend>lifecycle_msgs</depend>
+  <depend>eigen</depend>
+
+  <buildtool_export_depend>eigen3_cmake_module</buildtool_export_depend>
 
   <depend>flyscan_interfaces</depend>
 

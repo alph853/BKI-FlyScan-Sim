@@ -13,10 +13,7 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <opencv2/opencv.hpp>
-#include <cv_bridge/cv_bridge.hpp>
-#include <grid_map_ros/grid_map_ros.hpp>
-#include <grid_map_core/GridMap.hpp>
-#include <grid_map_cv/GridMapCvConverter.hpp>
+#include <eigen3/Eigen/Dense>
 
 #include "flyscan_core/base_node.hpp"
 #include "flyscan_common/enums.hpp"
@@ -37,9 +34,15 @@ using flyscan::core::BaseNode;
 struct Frontier {
     geometry_msgs::msg::Point center;
     std::vector<geometry_msgs::msg::Point> points;
+    Eigen::Vector2d centroid;
     double size;
     double distance_to_robot;
     double exploration_value;
+    int cluster_id;
+    double utility_score;
+    double distance_score;
+    double size_score;
+    double information_gain;
 };
 
 class FrontierExplorer : public BaseNode {
@@ -91,21 +94,38 @@ private:
     // Frontier Detection and Analysis
     // ============================================================================
     
-    std::vector<Frontier> detectFrontiers(const nav_msgs::msg::OccupancyGrid& map);
-    std::vector<cv::Point> findFrontierCells(const cv::Mat& map_image);
-    std::vector<Frontier> clusterFrontierCells(const std::vector<cv::Point>& frontier_cells,
-                                               const nav_msgs::msg::OccupancyGrid& map);
-    Frontier selectBestFrontier(const std::vector<Frontier>& frontiers);
+    /**
+     * @brief Detects frontiers using simple grid-based approach
+     * @param grid Occupancy grid to analyze
+     * @return Vector of detected frontiers
+     * @details Finds free cells adjacent to unknown cells, then groups nearby ones
+     */
+    std::vector<Frontier> DetectSimpleFrontiers(const nav_msgs::msg::OccupancyGrid& grid);
+    
+    /**
+     * @brief Groups nearby frontier cells into clusters
+     * @param raw_frontiers Vector of individual frontier cells
+     * @param group_distance Maximum distance to group frontiers together
+     * @return Vector of grouped frontier clusters
+     */
+    std::vector<Frontier> GroupNearbyFrontiers(const std::vector<Frontier>& raw_frontiers, double group_distance);
+    
+    /**
+     * @brief Selects closest frontier to robot
+     * @param frontiers Vector of candidate frontiers
+     * @return Shared pointer to closest frontier (nullptr if empty)
+     */
+    std::shared_ptr<Frontier> SelectClosestFrontier(const std::vector<Frontier>& frontiers);
+    
     void publishExplorationGoal(const Frontier& frontier);
     void publishFrontierVisualization(const std::vector<Frontier>& frontiers);
     
-    bool isValidCell(int x, int y, const cv::Mat& map) const;
-    bool isFrontierCell(int x, int y, const cv::Mat& map) const;
-    double calculateExplorationValue(const Frontier& frontier) const;
-    geometry_msgs::msg::Point mapToWorld(int map_x, int map_y, 
-                                         const nav_msgs::msg::OccupancyGrid& map) const;
-    cv::Point worldToMap(double world_x, double world_y, 
-                         const nav_msgs::msg::OccupancyGrid& map) const;
+    /**
+     * @brief Updates robot position from TF transforms
+     * @return Success status
+     */
+    bool UpdateRobotPosition();
+    
 
     // ============================================================================
     // ROS2 Publishers and Subscribers
@@ -144,15 +164,17 @@ private:
     
     geometry_msgs::msg::Point robot_position_;
     bool exploration_active_;
+    bool exploration_complete_;
     
     // ============================================================================
     // ROS Parameters (cached from parameter server)
     // ============================================================================
     
     double exploration_radius_;
-    double min_frontier_size_;
-    double frontier_cluster_distance_;
     double exploration_rate_;
+    double max_frontier_distance_;
+    std::string robot_frame_;
+    std::string map_frame_;
 };
 
 } // namespace exploration

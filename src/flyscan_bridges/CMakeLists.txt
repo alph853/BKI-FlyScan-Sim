@@ -15,6 +15,8 @@ find_package(px4_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(eigen3_cmake_module REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 include_directories(include)
 
@@ -25,6 +27,8 @@ ament_target_dependencies(px4_ros_bridge
   nav_msgs
   geometry_msgs
   tf2_ros
+  Eigen3
+  eigen3_cmake_module
 )
 
 install(TARGETS
