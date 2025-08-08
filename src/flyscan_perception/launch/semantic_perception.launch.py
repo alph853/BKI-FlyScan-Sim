@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -16,24 +14,24 @@ def generate_launch_description():
     )
 
     use_sim_time = LaunchConfiguration('use_sim_time')
-    
-    # Frontier Explorer Node
-    frontier_explorer_node = Node(
-        package='flyscan_exploration',
-        executable='frontier_explorer',
-        name='frontier_explorer',
+
+    # Semantic Perception node
+    semantic_perception_node = Node(
+        package='flyscan_perception',
+        executable='semantic_perception',
+        name='semantic_perception',
         parameters=[
             PathJoinSubstitution([
-                FindPackageShare('flyscan_exploration'),
+                FindPackageShare('flyscan_perception'),
                 'config',
-                'frontier_explorer.yaml'
+                'semantic_perception.yaml'
             ]),
             {'use_sim_time': use_sim_time}
         ],
-        output='screen'
+        output='screen',
     )
-    
+
     return LaunchDescription([
         use_sim_time_arg,
-        frontier_explorer_node,
+        semantic_perception_node,
     ])

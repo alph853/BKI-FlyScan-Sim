@@ -5,8 +5,8 @@
  * @date 2025
  */
 
-#include "flyscan_bridges/px4_ros_bridge.hpp"
-#include "flyscan_bridges/transform.hpp"
+#include "flyscan_drone_controller/px4_ros_bridge.hpp"
+#include "flyscan_drone_controller/transform.hpp"
 
 PX4ROSBridge::PX4ROSBridge()
 : Node("px4_ros_bridge")
@@ -16,19 +16,32 @@ PX4ROSBridge::PX4ROSBridge()
   if (!this->has_parameter("use_sim_time")) {
       this->declare_parameter("use_sim_time", false);
   }
-
-  // Subscribe to PX4 VehicleOdometry
+  
+  // Single drone support - drone ID parameter
+  if (!this->has_parameter("drone_id")) {
+      this->declare_parameter("drone_id", 0);
+  }
+  
+  drone_id_ = this->get_parameter("drone_id").as_int();
+  
+  // Subscribe to PX4 VehicleOdometry for this drone
+  std::string vehicle_odom_topic = (drone_id_ == 0) ? "/fmu/out/vehicle_odometry" : "/px4_" + std::to_string(drone_id_) + "/fmu/out/vehicle_odometry";
+  
   vehicle_odom_sub_ = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
-    "/fmu/out/vehicle_odometry",
+    vehicle_odom_topic,
     rclcpp::SensorDataQoS(),
-    std::bind(&PX4ROSBridge::vehicleOdomCallback, this, _1)
+    std::bind(&PX4ROSBridge::vehicleOdomCallback, this, std::placeholders::_1)
   );
-
-  odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom", 10);
+  
+  // Create odometry publisher for this drone
+  std::string odom_topic = (drone_id_ == 0) ? "/odom" : "/px4_" + std::to_string(drone_id_) + "/odom";
+  odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>(odom_topic, 10);
+  
+  RCLCPP_INFO(this->get_logger(), "Set up bridge for drone %d: %s -> %s", drone_id_, vehicle_odom_topic.c_str(), odom_topic.c_str());
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
-  RCLCPP_INFO(this->get_logger(), "PX4 ROS Bridge started");
+  RCLCPP_INFO(this->get_logger(), "PX4 ROS Bridge started for drone %d", drone_id_);
 }
 
 void PX4ROSBridge::vehicleOdomCallback(const px4_msgs::msg::VehicleOdometry::SharedPtr msg)
@@ -36,8 +49,8 @@ void PX4ROSBridge::vehicleOdomCallback(const px4_msgs::msg::VehicleOdometry::Sha
   // Create ROS2 odometry message
   auto odom_msg = nav_msgs::msg::Odometry();
   odom_msg.header.stamp = this->get_clock()->now();
-  odom_msg.header.frame_id = "odom";
-  odom_msg.child_frame_id = "base_link";
+  odom_msg.header.frame_id = (drone_id_ == 0) ? "odom" : "px4_" + std::to_string(drone_id_) + "_odom";
+  odom_msg.child_frame_id = (drone_id_ == 0) ? "base_link" : "px4_" + std::to_string(drone_id_) + "_base_link";
 \
   // Position: NED to ENU conversion
   odom_msg.pose.pose.position.x = msg->position[1];
@@ -71,8 +84,8 @@ void PX4ROSBridge::vehicleOdomCallback(const px4_msgs::msg::VehicleOdometry::Sha
     // Broadcast odom to base_link transform
   geometry_msgs::msg::TransformStamped transform;
   transform.header.stamp = odom_msg.header.stamp;
-  transform.header.frame_id = "odom";
-  transform.child_frame_id = "base_link";
+  transform.header.frame_id = odom_msg.header.frame_id;
+  transform.child_frame_id = odom_msg.child_frame_id;
   
   transform.transform.translation.x = odom_msg.pose.pose.position.x; 
   transform.transform.translation.y = odom_msg.pose.pose.position.y;

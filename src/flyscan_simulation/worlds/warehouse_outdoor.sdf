@@ -261,7 +261,7 @@
         </collision>
       </link>
     </model>
-    <model name="origin_marker">
+    <!-- <model name="origin_marker">
       <static>true</static>
       <pose>0 0 0 0 0 0</pose>
       <link name="link">
@@ -322,7 +322,7 @@
           <pose>0 0 12 0 0 0</pose>
         </visual>
       </link>
-    </model>
+    </model> -->
     <include>
       <uri>https://fuel.ignitionrobotics.org/1.0/MovAi/models/shelf</uri>
       <name>shelf_0</name>

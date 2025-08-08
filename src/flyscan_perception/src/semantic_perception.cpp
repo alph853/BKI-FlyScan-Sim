@@ -54,7 +54,10 @@ SemanticPerception::SemanticPerception(const rclcpp::NodeOptions& options,
         this->declare_parameter("model_path", "src/flyscan_perception/best.onnx");
     }
     if (!this->has_parameter("qr_position_threshold")) {
-        this->declare_parameter("qr_position_threshold", 1.0);  // 1 meter threshold
+        this->declare_parameter("qr_position_threshold", 0.8);  // 0.6 meter threshold
+    }
+    if (!this->has_parameter("drone_id")) {
+        this->declare_parameter("drone_id", 0);
     }
 
     RCLCPP_INFO(this->get_logger(), "Starting with parameter-based configuration");
@@ -83,6 +86,7 @@ flyscan::common::OperationStatus SemanticPerception::HandleConfigure()
         camera_frame_   = this->get_parameter("camera_frame").as_string();
         gpu_enabled_    = this->get_parameter("gpu_enabled").as_bool();
         qr_position_threshold_ = this->get_parameter("qr_position_threshold").as_double();
+        drone_id_ = this->get_parameter("drone_id").as_int();
 
         std::string model_path = this->get_parameter("model_path").as_string();
         
@@ -90,33 +94,33 @@ flyscan::common::OperationStatus SemanticPerception::HandleConfigure()
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-        RCLCPP_INFO(this->get_logger(), "Cached parameters: frame_skip=%d, conf_thresh=%.2f, nms_thresh=%.2f, model=%s",
-                   inference_frame_skip_, confidence_threshold_, nms_threshold_, model_path.c_str());
+        RCLCPP_INFO(this->get_logger(), "Cached parameters: drone_id=%d, frame_skip=%d, conf_thresh=%.2f, nms_thresh=%.2f, model=%s",
+                   drone_id_, inference_frame_skip_, confidence_threshold_, nms_threshold_, model_path.c_str());
 
         // Create subscribers with appropriate QoS
         auto qos = rclcpp::SensorDataQoS();
 
         video_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/camera/image_raw", qos,
+            GetCameraTopicName("/camera/image_raw"), qos,
             std::bind(&SemanticPerception::VideoCallback, this, _1)
         );
     
         depth_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/camera/depth/image", qos,
+            GetCameraTopicName("/camera/depth/image"), qos,
             std::bind(&SemanticPerception::DepthCallback, this, _1)
         );
         
         camera_info_subscription_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-            "/camera/camera_info", qos,
+            GetCameraTopicName("/camera/camera_info"), qos,
             std::bind(&SemanticPerception::CameraInfoCallback, this, _1)
         );
         
         // Create publishers
         detection_publisher_ = this->create_publisher<flyscan_interfaces::msg::DetectionArray>(
-            "detections", 10);
+            GetCameraTopicName("/detections"), 10);
         
         qr_position_publisher_ = this->create_publisher<geometry_msgs::msg::PointStamped>(
-            "qr_positions", 10);
+            GetCameraTopicName("/qr_positions"), 10);
 
         
         // Initialize YOLO model
@@ -820,6 +824,10 @@ bool flyscan::perception::SemanticPerception::IsNewQrCode(const std::string& qr_
     }
     
     return true;  // This is a new QR code
+}
+
+std::string SemanticPerception::GetCameraTopicName(const std::string& topic_name) const {
+    return (drone_id_ == 0) ? topic_name : "/px4_" + std::to_string(drone_id_) + topic_name;
 }
 
 } // namespace perception

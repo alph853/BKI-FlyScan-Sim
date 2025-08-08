@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -16,24 +14,24 @@ def generate_launch_description():
     )
 
     use_sim_time = LaunchConfiguration('use_sim_time')
-    
-    # Frontier Explorer Node
-    frontier_explorer_node = Node(
-        package='flyscan_exploration',
-        executable='frontier_explorer',
-        name='frontier_explorer',
+
+    # PX4Controller node
+    px4_controller_node = Node(
+        package='flyscan_drone_controller',
+        executable='px4_controller',
+        name='px4_controller',
         parameters=[
             PathJoinSubstitution([
-                FindPackageShare('flyscan_exploration'),
+                FindPackageShare('flyscan_drone_controller'),
                 'config',
-                'frontier_explorer.yaml'
+                'px4_controller.yaml'
             ]),
             {'use_sim_time': use_sim_time}
         ],
         output='screen'
     )
-    
+
     return LaunchDescription([
         use_sim_time_arg,
-        frontier_explorer_node,
+        px4_controller_node,
     ])

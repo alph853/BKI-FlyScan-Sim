@@ -9,6 +9,7 @@
 #define FLYSCAN_BRIDGES__PX4_ROS_BRIDGE_HPP_
 
 #include <memory>
+#include <map>
 #include "rclcpp/rclcpp.hpp"
 #include "px4_msgs/msg/vehicle_odometry.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -43,13 +44,16 @@ private:
    */
   void vehicleOdomCallback(const px4_msgs::msg::VehicleOdometry::SharedPtr msg);
 
-  /// Subscription to PX4 vehicle odometry topic
+  /// Subscription for PX4 vehicle odometry topic
   rclcpp::Subscription<px4_msgs::msg::VehicleOdometry>::SharedPtr vehicle_odom_sub_;
   
   /// Publisher for ROS2 standard odometry messages
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   
-  /// Transform broadcaster for odom→base_link transform
+  /// Drone ID for this bridge instance
+  int drone_id_;
+  
+  /// Transform broadcaster for odom→base_link transforms
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 };
 

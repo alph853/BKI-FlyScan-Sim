@@ -63,7 +63,7 @@ def generate_launch_description():
 
     # PX4 ROS Bridge node
     px4_ros_bridge_node = Node(
-        package='flyscan_bridges',
+        package='flyscan_drone_controller',
         executable='px4_ros_bridge',
         name='px4_ros_bridge',
         parameters=[{
@@ -198,50 +198,65 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression(["'", mode, "' == 'sim' and '", rtabmap_launch, "' == 'true'"]))    
     )
 
-    # LifeMonitor node
+    # LifeMonitor node (keeping as direct node since it's in flyscan_core)
     life_monitor_node = Node(
         package='flyscan_core',
         executable='life_monitor',
         name='life_monitor',
         parameters=[
+            PathJoinSubstitution([
+                FindPackageShare('flyscan_core'),
+                'config',
+                'base_node.yaml'
+            ]),
             {'use_sim_time': use_sim_time}
         ],
         output='screen',
         condition=IfCondition(life_monitor)
     )
 
-    # PX4Controller nodegz_bridge_node
-    px4_controller_node = Node(
-        package='flyscan_drone_controller',
-        executable='px4_controller',
-        name='px4_controller',
-        parameters=[
-            {'use_sim_time': use_sim_time}
-        ],
-        output='screen',
+    # PX4Controller launch
+    px4_controller_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('flyscan_drone_controller'),
+                'launch',
+                'px4_controller.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim_time
+        }.items(),
         condition=IfCondition(px4_controller)
     )
 
-    semantic_perception_node = Node(
-        package='flyscan_perception',
-        executable='semantic_perception',
-        name='semantic_perception',
-        parameters=[
-            {'use_sim_time': use_sim_time},
-            {"camera_frame": "x500_flyscan_0/camera_link/StereoOV7251"},
-        ],
-        output='screen',
+    # Semantic Perception launch
+    semantic_perception_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('flyscan_perception'),
+                'launch',
+                'semantic_perception.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim_time
+        }.items(),
         condition=IfCondition(semantic_perception)
     )
 
-    frontier_explorer_node = Node(
-        package='flyscan_exploration',
-        executable='frontier_explorer',
-        name='frontier_explorer',
-        parameters=[
-            {'use_sim_time': use_sim_time},
-        ],
-        output='screen',
+    # Frontier Explorer launch
+    frontier_explorer_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('flyscan_exploration'),
+                'launch',
+                'frontier_exploration.launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'use_sim_time': use_sim_time
+        }.items(),
         condition=IfCondition(frontier_exploration)
     )
 
@@ -265,10 +280,10 @@ def generate_launch_description():
 
         life_monitor_node,
 
-        TimerAction(period=5.0, actions=(
-            px4_controller_node,
-            semantic_perception_node,
-            frontier_explorer_node,
-        )),
+        TimerAction(period=3.0, actions=[
+            px4_controller_launch,
+            semantic_perception_launch,
+            frontier_explorer_launch,
+        ]),
         rtabmap_launcher,
     ])

@@ -1,0 +1,7 @@
+geometry_msgs/Point center
+uint32 size
+float64 utility_score
+float64 distance_score
+float64 size_score
+float64 information_gain
+float64 distance_to_robot

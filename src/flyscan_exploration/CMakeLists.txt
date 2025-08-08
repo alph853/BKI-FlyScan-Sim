@@ -38,6 +38,8 @@ find_package(grid_map_ros REQUIRED)
 find_package(grid_map_core REQUIRED)
 find_package(grid_map_cv REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(yaml-cpp REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 find_package(flyscan_common REQUIRED)
 find_package(flyscan_core REQUIRED)
@@ -48,29 +50,6 @@ find_package(flyscan_interfaces REQUIRED)
 # ───────────────────────────
 
 set(NODE_TARGETS)
-
-macro(add_target name type source deps libs)
-  if(${type} STREQUAL "executable")
-    add_executable(${name} ${source})
-    target_include_directories(${name}
-      PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    )
-  elseif(${type} STREQUAL "library")
-    add_library(${name} SHARED ${source})
-    target_include_directories(${name}
-      PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    )
-  endif()
-
-  target_link_libraries(${name} ${libs})
-
-  ament_target_dependencies(${name} ${deps})
-
-  list(APPEND NODE_TARGETS ${name})
-endmacro()
 
 set(dependencies
   rclcpp
@@ -88,18 +67,35 @@ set(dependencies
   grid_map_core
   grid_map_cv
   visualization_msgs
+  yaml-cpp
+  ament_index_cpp
 )
 
 set(libraries
   flyscan_core::base_node
   ${OpenCV_LIBRARIES}
+  yaml-cpp
 )
 
-add_target(frontier_explorer executable
-  "src/frontier_explorer.cpp"
-  "${dependencies}"
-  "${libraries}"
+# Build frontier_explorer executable
+add_executable(frontier_explorer src/frontier_explorer.cpp)
+target_include_directories(frontier_explorer
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
+target_link_libraries(frontier_explorer ${libraries})
+ament_target_dependencies(frontier_explorer ${dependencies})
+list(APPEND NODE_TARGETS frontier_explorer)
+
+# Build waypoint_mission executable
+add_executable(waypoint_mission src/waypoint_mission.cpp)
+target_include_directories(waypoint_mission
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(waypoint_mission ${libraries})
+ament_target_dependencies(waypoint_mission ${dependencies})
+list(APPEND NODE_TARGETS waypoint_mission)
 
 # ───────────────────────────
 # Install Rules
@@ -113,6 +109,12 @@ install(TARGETS ${NODE_TARGETS}
 )
 install(DIRECTORY include/ DESTINATION include/)
 
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
+)
 # ───────────────────────────
 # Testing & Linting
 # ───────────────────────────

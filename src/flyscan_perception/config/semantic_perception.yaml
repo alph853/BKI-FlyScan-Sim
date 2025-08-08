@@ -1,0 +1,16 @@
+semantic_perception:
+  ros__parameters:
+    # Inference parameters
+    inference_frame_skip: 3
+    confidence_threshold: 0.5
+    nms_threshold: 0.4
+    
+    # Camera parameters (simulation uses specific frame)
+    camera_frame: "x500_flyscan_0/camera_link/StereoOV7251"
+    
+    # Model parameters
+    gpu_enabled: false
+    model_path: "src/flyscan_perception/best.onnx"
+    
+    # QR code processing
+    qr_position_threshold: 1.0  # meters

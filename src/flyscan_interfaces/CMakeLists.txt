@@ -40,6 +40,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BoundingBox.msg"
   "msg/Detection.msg"
   "msg/DetectionArray.msg"
+  "msg/Frontier.msg"
+  "msg/FrontierArray.msg"
 
   "srv/GetRegisteredNodes.srv"
   "srv/RegisterNode.srv"
@@ -47,6 +49,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/RequestRecovery.srv"
 
   "srv/SetControlMode.srv"
+  "srv/NavigateToPose.srv"
 
   DEPENDENCIES std_msgs geometry_msgs nav_msgs sensor_msgs builtin_interfaces
 )

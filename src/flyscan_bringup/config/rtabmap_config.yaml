@@ -23,7 +23,7 @@ rtabmap:
     Mem/LaserScanDownsampleStepSize: '1'
     Mem/UseOdomFeatures: 'true'
     Mem/DepthCompressionFormat: '.png'
-    
+
     # Visual parameters - Updated for consistent feature detection
     Vis/EstimationType: '1'
     Vis/MaxDepth: '10.0'
@@ -56,6 +56,11 @@ rtabmap:
     Optimizer/Strategy: '1'
     Optimizer/Iterations: '100'
     Optimizer/Epsilon: '0.00001'
+
+    Rtabmap/DetectFrontiers: 'true'
+    Rtabmap/FrontierNbNeighbours: '4'       # default: 4
+    Rtabmap/FrontierClusterRadius: '0.3'    # cluster radius for frontier filtering
+
 
 rtabmap_viz:
   ros__parameters:

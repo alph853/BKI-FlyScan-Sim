@@ -9,9 +9,10 @@ as a composable node within that container for improved performance.
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, ExecuteProcess, TimerAction
-from launch.substitutions import LaunchConfiguration, TextSubstitution
+from launch.substitutions import LaunchConfiguration, TextSubstitution, PathJoinSubstitution
 from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.descriptions import ComposableNode
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -74,7 +75,12 @@ def generate_launch_description():
             name=node_name,
             namespace=namespace,
             parameters=[
-                # Add any parameters here if needed
+                PathJoinSubstitution([
+                    FindPackageShare('flyscan_drone_controller'),
+                    'config',
+                    'px4_controller.yaml'
+                ]),
+                {'use_sim_time': use_sim_time}
             ],
             remappings=[
                 # Add any topic remappings here if needed    
@@ -91,7 +97,12 @@ def generate_launch_description():
             name='life_monitor',
             namespace=namespace,
             parameters=[
-                # Add any parameters here if needed
+                PathJoinSubstitution([
+                    FindPackageShare('flyscan_core'),
+                    'config',
+                    'base_node.yaml'
+                ]),
+                {'use_sim_time': use_sim_time}
             ]
         )
 

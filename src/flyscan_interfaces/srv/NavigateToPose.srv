@@ -1,0 +1,10 @@
+# Request for safe navigation to a pose
+geometry_msgs/PoseStamped target_pose
+float64 max_velocity     # Maximum velocity in m/s (default: 1.0)
+float64 safety_margin    # Safety margin around obstacles in meters (default: 1.5)
+bool use_obstacle_avoidance  # Enable dynamic obstacle avoidance (default: true)
+---
+# Response
+bool success
+string message
+float64 estimated_duration  # Estimated time to reach target in seconds

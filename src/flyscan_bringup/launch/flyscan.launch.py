@@ -22,9 +22,15 @@ def generate_launch_description():
         default_value='true',
         description='Use simulation (Gazebo) clock if true'
     )
+    full_launch_enabled_arg = DeclareLaunchArgument(
+        'full_launch_enabled',
+        default_value='false',
+        description='Launch full utility stack if true'
+    )
 
     mode = LaunchConfiguration('mode')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    full_launch_enabled = LaunchConfiguration('full_launch_enabled')
 
     # --------------------------------------
     # >>> Launch description components >>>
@@ -52,65 +58,23 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={
-            'mode': mode
+            "mode": mode,
+            "use_sim_time": use_sim_time,
+            "rtabmap_launch": PythonExpression(["'true' if '", full_launch_enabled, "' == 'true' else 'false'"]),
+            "life_monitor": PythonExpression(["'true' if '", full_launch_enabled, "' == 'true' else 'false'"]),
+            "px4_controller": PythonExpression(["'true' if '", full_launch_enabled, "' == 'true' else 'false'"]),
+            # "semantic_perception": PythonExpression(["'true' if '", full_launch_enabled, "' == 'true' else 'false'"]),
+            # "frontier_exploration": PythonExpression(["'true' if '", full_launch_enabled, "' == 'true' else 'false'"]),
         }.items()
-    )
-
-    # Include RTAB-Map launch (sim mode only)
-    rtabmap_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('flyscan_bringup'),
-                'launch',
-                'rtabmap_3d.launch.py'
-            ])
-        ]),
-        launch_arguments={
-            'use_sim_time': use_sim_time,
-            'mode': mode
-        }.items(),
-        condition=IfCondition(PythonExpression(["'", mode, "' == 'sim'"]))    
-    )
-
-    # LifeMonitor node
-    life_monitor_node = Node(
-        package='flyscan_core',
-        executable='life_monitor',
-        name='life_monitor',
-        parameters=[
-            {'use_sim_time': use_sim_time}
-        ],
-        output='screen'
-    )
-
-    # PX4Controller nodegz_bridge_node
-    px4_controller_node = Node(
-        package='flyscan_drone_controller',
-        executable='px4_controller',
-        name='px4_controller',
-        parameters=[
-            {'use_sim_time': use_sim_time}
-        ],
-        output='screen'
-    )
-
-    semantic_perception_node = Node(
-        package='flyscan_perception',
-        executable='semantic_perception',
-        name='semantic_perception',
-        parameters=[
-            {'use_sim_time': use_sim_time}
-        ],
-        output='screen',
     )
 
     return LaunchDescription([
         mode_arg,
         use_sim_time_arg,
         px4_sim_launch,
-        utils_launch,
-        life_monitor_node,
-        px4_controller_node,
-        semantic_perception_node,
-        rtabmap_launch,
+        full_launch_enabled_arg,
+        TimerAction(
+            period=5.0,
+            actions=[utils_launch]
+        ),
     ])

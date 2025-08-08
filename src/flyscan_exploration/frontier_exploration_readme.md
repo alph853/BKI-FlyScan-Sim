@@ -1,20 +1,508 @@
-# Smart Frontier-Based Exploration: Mathematical Theory and Implementation
+# Frontier Exploration Algorithm Documentation
+
+## Overview
+
+The FlyScan exploration system implements an advanced autonomous frontier-based exploration algorithm for UAVs using ROS 2. The system combines intelligent frontier detection, safe navigation, and adaptive recovery mechanisms to efficiently explore unknown environments while maintaining flight safety.
 
 ## Table of Contents
 
-1. [Introduction](#introduction)
-2. [Mathematical Foundations](#mathematical-foundations)
-3. [Algorithm Overview](#algorithm-overview)
-4. [Detailed Mathematical Analysis](#detailed-mathematical-analysis)
-5. [Implementation Details](#implementation-details)
-6. [Performance Analysis](#performance-analysis)
-7. [Merged Implementation Status](#merged-implementation-status)
-8. [API Reference](#api-reference)
-9. [References](#references)
+1. [System Architecture](#system-architecture)
+2. [Frontier Detection Algorithm](#frontier-detection-algorithm)
+3. [Safe Navigation System](#safe-navigation-system)
+4. [Recovery System](#recovery-system)
+5. [Configuration Parameters](#configuration-parameters)
+6. [Performance Characteristics](#performance-characteristics)
+7. [Integration with FlyScan System](#integration-with-flyscan-system)
+8. [Usage Examples](#usage-examples)
+9. [Debugging and Diagnostics](#debugging-and-diagnostics)
+10. [Mathematical Foundations](#mathematical-foundations)
+11. [Implementation Details](#implementation-details)
+12. [API Reference](#api-reference)
+13. [References](#references)
 
-## Introduction
+## System Architecture
 
-Frontier-based exploration is a fundamental algorithm in autonomous robotics for systematic exploration of unknown environments. This implementation provides an advanced, multi-criteria approach that combines classical frontier detection with modern computer vision techniques and multi-objective optimization.
+### Core Components
+
+1. **FrontierExplorer Node** (`frontier_explorer.cpp`)
+   - Implements frontier-based autonomous exploration
+   - Manages exploration lifecycle and mode switching
+   - Handles recovery from stuck conditions
+
+2. **PX4Controller Node** (`px4_controller.cpp`)
+   - Provides safe navigation and obstacle avoidance
+   - Manages drone control modes (Manual/Teleop/Autonomous)
+   - Implements point cloud-based path planning
+
+3. **Integration Layer**
+   - Service-based communication between exploration and navigation
+   - Coordinated mode management and safety oversight
+
+## Frontier Detection Algorithm
+
+### Multi-Stage Detection Pipeline
+
+The frontier detection process follows a sophisticated 7-stage pipeline:
+
+#### Stage 1: Map and Position Validation
+```cpp
+// Validate map availability and robot position
+if (!current_map_ || !UpdateRobotPosition()) {
+    return; // Wait for valid data
+}
+```
+
+#### Stage 2: Optimized DFS Frontier Detection
+```cpp
+std::vector<Frontier> DetectFrontiers(const nav_msgs::msg::OccupancyGrid& grid)
+```
+
+**Key Features:**
+- **Circular ROI (Region of Interest)**: Limits search area around robot position
+- **DFS Flood Fill**: Efficiently identifies connected frontier regions
+- **Adaptive ROI Radius**: Dynamically adjusts search area based on frontier availability
+
+**Algorithm Steps:**
+1. **ROI Filtering**: Only process cells within configurable radius of robot
+2. **Free Cell Detection**: Identify free space cells (occupancy < 50)
+3. **Unknown Neighbor Check**: Find free cells adjacent to unknown space (-1)
+4. **Flood Fill Clustering**: Group connected frontier cells using DFS
+
+```cpp
+void DfsFloodFill(const nav_msgs::msg::OccupancyGrid& grid, int start_x, int start_y,
+                  std::vector<std::vector<bool>>& visited, 
+                  std::vector<cv::Point>& frontier_points) {
+    std::stack<cv::Point> stack;
+    stack.push(cv::Point(start_x, start_y));
+    
+    while (!stack.empty()) {
+        // Process 4-connected neighbors for controlled expansion
+        // Validate ROI boundaries and occupancy values
+    }
+}
+```
+
+#### Stage 3: DBSCAN Clustering
+```cpp
+std::vector<Frontier> DbscanClustering(const std::vector<cv::Point>& points, 
+                                      double eps, int min_points,
+                                      const nav_msgs::msg::OccupancyGrid& grid)
+```
+
+**Purpose**: Groups nearby frontier points into meaningful clusters
+
+**Parameters:**
+- `eps`: Maximum distance between points in same cluster (default: 3.0m)
+- `min_points`: Minimum points required to form cluster (default: 3)
+- `min_frontier_size`: Minimum cluster size to be considered valid (default: 5.0)
+
+**Algorithm:**
+1. **Density-Based Clustering**: Groups points within eps distance
+2. **Noise Removal**: Filters out small, isolated frontier points
+3. **Centroid Calculation**: Computes world-coordinate cluster centers
+4. **Size Validation**: Only retains clusters above minimum size threshold
+
+#### Stage 4: Adaptive ROI Adjustment
+```cpp
+void AdjustROIRadius(size_t frontiers_found) {
+    if (frontiers_found == 0 && roi_radius_ < max_roi_radius_) {
+        roi_radius_ = std::min(roi_radius_ + 2.0, max_roi_radius_);
+    } else if (frontiers_found > 10 && roi_radius_ > min_roi_radius_) {
+        roi_radius_ = std::max(roi_radius_ - 1.0, min_roi_radius_);
+    }
+}
+```
+
+**Adaptive Logic:**
+- **No Frontiers**: Increase search radius to explore further
+- **Too Many Frontiers**: Decrease radius to focus on nearby areas
+- **Balanced Search**: Maintains optimal exploration efficiency
+
+#### Stage 5: Frontier Validation
+- Checks for valid frontier clusters
+- Terminates exploration if no suitable targets found
+- Maintains exploration state management
+
+#### Stage 6: Utility-Based Selection
+```cpp
+double CalculateUtility(Frontier& frontier, const nav_msgs::msg::OccupancyGrid& grid) {
+    // Multi-criteria utility function
+    double distance_score = 1.0 / (1.0 + frontier.distance_to_robot / 10.0);
+    double size_score = std::min(frontier.size / 20.0, 1.0);
+    double information_gain = CalculateInformationGain(frontier, grid);
+    
+    return distance_weight_ * distance_score + 
+           size_weight_ * size_score + 
+           information_weight_ * information_gain;
+}
+```
+
+**Utility Components:**
+1. **Distance Score**: Favors closer frontiers (exponential decay)
+2. **Size Score**: Rewards larger frontier clusters (normalized to max 20 points)  
+3. **Information Gain**: Measures unknown area coverage within information radius
+
+**Weighting Parameters (configurable):**
+- `distance_weight_`: 0.3 (30% weight)
+- `size_weight_`: 0.3 (30% weight)  
+- `information_weight_`: 0.4 (40% weight)
+
+#### Stage 7: Goal Publication and Visualization
+- Publishes selected frontier to navigation system
+- Creates RViz visualization markers
+- Logs exploration progress and metrics
+
+## Safe Navigation System
+
+### Point Cloud-Based Navigation
+
+The PX4Controller implements sophisticated obstacle avoidance using real-time point cloud processing:
+
+#### Navigation Architecture
+```cpp
+OperationStatus StartPointCloudNavigation(const geometry_msgs::msg::PoseStamped& target_pose,
+                                         double max_velocity, double safety_margin)
+```
+
+**Key Features:**
+- **Gradual Step-Based Movement**: Breaks long paths into safe increments
+- **Real-Time Obstacle Detection**: Uses KD-tree for efficient spatial queries
+- **Alternative Path Finding**: Computes fallback routes when obstacles detected
+- **Safety Margin Enforcement**: Maintains configurable distance from obstacles
+
+#### Path Planning Algorithm
+
+1. **Step Calculation**:
+```cpp
+geometry_msgs::msg::Point CalculateNextNavigationStep(const geometry_msgs::msg::Point& current_pos,
+                                                     const geometry_msgs::msg::Point& target_pos) {
+    double distance = sqrt(dx*dx + dy*dy + dz*dz);
+    
+    if (distance <= navigation_step_size_) {
+        return target_pos;  // Close enough for direct movement
+    } else {
+        // Calculate unit vector and step forward
+        return current_pos + unit_vector * navigation_step_size_;
+    }
+}
+```
+
+2. **Obstacle Detection**:
+```cpp
+bool IsPathClearPointCloud(const geometry_msgs::msg::Point& start, 
+                          const geometry_msgs::msg::Point& end) {
+    // Sample points along path every 20cm
+    // Use KD-tree radius search for nearby obstacles
+    // Consider altitude-based obstacle filtering
+}
+```
+
+3. **Alternative Path Finding**:
+```cpp
+geometry_msgs::msg::Point FindAlternativeStep(const geometry_msgs::msg::Point& current_pos,
+                                             const geometry_msgs::msg::Point& target_pos) {
+    // Try angular offsets: ±45°, ±90°, ±135°
+    // Test upward movement if horizontal blocked
+    // Return safe alternative or hold position
+}
+```
+
+### Camera-Optimal Positioning
+
+The system automatically computes optimal drone positioning for camera coverage:
+
+```cpp
+void TransformFrontierWithCamera(const geometry_msgs::msg::Point& frontier_pos, 
+                                geometry_msgs::msg::Point& optimal_pos, float& optimal_yaw) {
+    // Calculate optimal distance maintaining camera FOV
+    // Compute yaw angle to face frontier
+    // Enforce minimum flight altitude constraints
+}
+```
+
+**Parameters:**
+- `camera_fov_horizontal_`: 90.0° (configurable)
+- `optimal_camera_distance_`: 3.0m (configurable)
+- `min_flight_altitude_`: Safety altitude constraint (NED frame)
+
+## Recovery System
+
+### Stuck Detection Algorithm
+
+The system detects when the robot becomes stuck exploring similar frontiers:
+
+```cpp
+bool DetectSimilarFrontiers(const geometry_msgs::msg::Point& new_frontier) {
+    // Maintain frontier history with timestamps
+    // Check similarity within time window (30s default)
+    // Consider stuck if >80% of recent frontiers within 2m threshold
+}
+```
+
+**Detection Parameters:**
+- `similarity_threshold_`: 2.0m (spatial similarity)
+- `similarity_time_threshold_`: 30.0s (temporal window)
+- `similarity_ratio_`: 80% (stuck detection threshold)
+
+### Recovery Maneuver Sequence
+
+When stuck condition detected, executes 3-step recovery:
+
+```cpp
+enum class RecoveryStep {
+    kBackward,    // Move backward from current position
+    kRollDown,    // Roll drone for different camera angle (if 6DOF enabled)
+    kRollUp       // Return to level flight and original position
+};
+```
+
+**Recovery Execution:**
+1. **Backward Movement**: Retreat by configurable distance (2.0m default)
+2. **Attitude Change**: Roll drone to change sensor perspective (15° default)  
+3. **Position Reset**: Return to original position with level attitude
+
+**Recovery Parameters:**
+- `recovery_backward_distance_`: 2.0m
+- `recovery_roll_angle_`: 15.0°
+- `recovery_maneuver_steps_`: 5 (max steps)
+- Step duration: 2.0s each
+
+### Early Recovery Termination
+
+The system can terminate recovery early when dissimilar frontiers are detected:
+
+```cpp
+bool IsFrontierDissimilar(const geometry_msgs::msg::Point& new_frontier) {
+    // Check against recent frontier history
+    // Consider dissimilar if >50% of recent frontiers beyond threshold
+}
+```
+
+## Configuration Parameters
+
+### Frontier Detection
+```yaml
+exploration_radius: 10.0          # Base exploration radius (m)
+roi_radius: 15.0                  # Region of interest radius (m)
+min_roi_radius: 5.0               # Minimum ROI radius (m)
+max_roi_radius: 25.0              # Maximum ROI radius (m)
+min_frontier_size: 5.0            # Minimum frontier cluster size
+dbscan_eps: 3.0                   # DBSCAN clustering distance (m)
+dbscan_min_points: 3              # DBSCAN minimum cluster points
+information_radius: 8.0           # Information gain calculation radius (m)
+```
+
+### Utility Function Weights
+```yaml
+distance_weight: 0.3              # Distance component weight
+size_weight: 0.3                  # Frontier size component weight  
+information_weight: 0.4           # Information gain component weight
+min_utility_threshold: 0.2        # Minimum utility for frontier selection
+```
+
+### Safe Navigation
+```yaml
+waypoint_tolerance: 0.3           # Goal reaching tolerance (m)
+obstacle_detection_range: 5.0     # Obstacle sensing range (m)
+min_obstacle_distance: 1.5        # Safety margin from obstacles (m)
+navigation_step_size: 0.5         # Maximum step size per update (m)
+max_navigation_attempts: 20       # Max retry attempts before abort
+```
+
+### Recovery System
+```yaml
+similarity_threshold: 2.0         # Spatial similarity threshold (m)
+similarity_time_threshold: 30.0   # Temporal window for similarity (s)
+recovery_altitude_offset: 1.0     # Recovery altitude change (m)
+recovery_backward_distance: 2.0   # Backward movement distance (m)
+recovery_roll_angle: 15.0         # Roll angle for attitude change (deg)
+recovery_maneuver_steps: 5        # Maximum recovery steps
+```
+
+### Point Cloud Processing
+```yaml
+point_cloud_downsample_leaf_size: 0.1  # Voxel grid filter size (m)
+obstacle_check_ahead_distance: 2.0     # Forward obstacle check distance (m)
+```
+
+## Performance Characteristics
+
+### Computational Complexity
+- **Frontier Detection**: O(n) where n = ROI cell count
+- **DBSCAN Clustering**: O(m log m) where m = frontier point count
+- **Point Cloud Navigation**: O(k log k) where k = point cloud size
+- **Utility Calculation**: O(1) per frontier
+
+### Memory Usage
+- **Frontier History**: Limited by time window (30s default)
+- **Point Cloud**: Downsampled using voxel grid filtering
+- **Map Storage**: Single occupancy grid reference (shared pointer)
+
+### Real-Time Performance
+- **Exploration Timer**: 1 Hz (configurable via `exploration_rate`)
+- **Navigation Timer**: 10 Hz for smooth trajectory execution
+- **Setpoint Timer**: 20 Hz (50ms default, configurable via `setpoint_rate_ms`)
+
+## Integration with FlyScan System
+
+### Service Interfaces
+
+1. **Mode Control**:
+```cpp
+/px4_controller/set_control_mode  // Switch between manual/teleop/autonomous modes
+```
+
+2. **Safe Navigation**:
+```cpp
+/px4_controller/navigate_to_pose  // Request safe navigation to pose
+```
+
+### Topic Communication
+
+1. **Exploration Goals**:
+```cpp
+/exploration_goal                 // FrontierExplorer -> PX4Controller
+```
+
+2. **Map Data**:
+```cpp
+/map                             // SLAM system -> FrontierExplorer
+```
+
+3. **Point Cloud**:
+```cpp  
+/camera/depth/points             // Depth sensor -> PX4Controller
+```
+
+4. **Visualization**:
+```cpp
+/frontier_markers                // FrontierExplorer -> RViz
+```
+
+### Lifecycle Management
+
+Both nodes implement ROS 2 Lifecycle patterns:
+- **Configure**: Initialize parameters and create communication interfaces
+- **Activate**: Start exploration/navigation timers and begin operations  
+- **Deactivate**: Pause operations while maintaining state
+- **Cleanup**: Release resources and reset state
+- **Error**: Handle error conditions with safe fallbacks
+
+## Usage Examples
+
+### Launch Autonomous Exploration
+```bash
+# 1. Start exploration node
+ros2 run flyscan_exploration frontier_explorer
+
+# 2. Configure and activate
+ros2 lifecycle set frontier_explorer configure
+ros2 lifecycle set frontier_explorer activate
+
+# 3. Switch controller to autonomous mode  
+ros2 service call /px4_controller/set_control_mode flyscan_interfaces/srv/SetControlMode "{mode: 2}"
+```
+
+### Monitor Exploration Progress
+```bash
+# View exploration goals
+ros2 topic echo /exploration_goal
+
+# Monitor frontier visualization in RViz
+ros2 run rviz2 rviz2 -d flyscan_exploration.rviz
+```
+
+### Manual Navigation Override
+```bash
+# Switch to teleop mode
+ros2 service call /px4_controller/set_control_mode flyscan_interfaces/srv/SetControlMode "{mode: 1}"
+
+# Send teleop commands
+ros2 topic pub /px4_controller/teleop_command flyscan_interfaces/msg/TeleopCommand "{command: 'forward'}"
+```
+
+## Debugging and Diagnostics
+
+### Log Analysis
+
+The system provides comprehensive logging at multiple levels:
+
+```cpp
+RCLCPP_DEBUG  // Detailed algorithm steps and intermediate results
+RCLCPP_INFO   // Major state transitions and exploration progress  
+RCLCPP_WARN   // Non-critical issues and fallback activations
+RCLCPP_ERROR  // Critical errors requiring attention
+```
+
+### Key Debugging Topics
+
+1. **Stage Progress Logging**:
+```
+Stage 1: Map and position validation complete
+Stage 2: Detected 15 raw frontiers using DFS  
+Stage 3: DBSCAN clustering produced 3 valid frontier clusters
+Stage 4: Adjusted ROI radius to 18.0 based on 3 frontiers found
+Stage 5: No valid frontiers detected - exploration complete!
+Stage 6: Selected best frontier with utility 0.784 at (12.5, 8.2)
+Stage 7: Complete - Published goal, distance: 15.2, utility: 0.784
+```
+
+2. **Navigation Status**:
+```
+Started point cloud navigation to target (12.5, 8.2, -1.5)
+Moving to next step: (10.2, 7.1, -1.5), distance to target: 8.3
+Obstacle detected, using alternative step: (9.8, 6.5, -1.5)  
+Point cloud navigation completed - reached target
+```
+
+3. **Recovery Events**:
+```
+Similar frontiers detected! Initiating recovery maneuver sequence
+Recovery sequence started from position: N=10.0, E=8.0, D=-1.5, Yaw=45.0
+Recovery step 1 (Backward) completed
+Recovery step 2 (Roll Down) completed  
+Recovery step 3 (Roll Up and Return) completed
+Recovery maneuver sequence completed successfully
+```
+
+### Performance Monitoring
+
+Use ROS 2 tools to monitor system performance:
+
+```bash
+# Check node resource usage
+ros2 node info frontier_explorer
+ros2 node info px4_controller
+
+# Monitor message rates
+ros2 topic hz /exploration_goal
+ros2 topic hz /frontier_markers
+
+# View parameter values
+ros2 param list frontier_explorer
+ros2 param get frontier_explorer exploration_radius
+```
+
+## Future Enhancements
+
+### Planned Improvements
+
+1. **Multi-Robot Coordination**: Support for coordinated multi-UAV exploration
+2. **Semantic Mapping**: Integration with object detection for semantic frontier prioritization  
+3. **Learning-Based Utility**: Machine learning for adaptive utility function optimization
+4. **Energy-Aware Planning**: Battery level consideration in exploration planning
+5. **Dynamic Obstacle Avoidance**: Enhanced real-time obstacle avoidance algorithms
+
+### Research Directions
+
+1. **Exploration Efficiency Metrics**: Quantitative analysis of coverage vs. time performance
+2. **Sensor Fusion**: Integration of multiple sensor modalities for improved mapping
+3. **Uncertainty Quantification**: Probabilistic frontier detection and utility estimation
+4. **Adaptive Parameters**: Online parameter tuning based on environment characteristics
+
+*This documentation covers the complete frontier exploration and safe navigation algorithms implemented in the FlyScan autonomous UAV system. For implementation details, refer to the source code in `frontier_explorer.cpp` and `px4_controller.cpp`.*
+
+## Mathematical Foundations
 
 ### Problem Statement
 
@@ -349,6 +837,7 @@ The advanced smart frontier exploration algorithms have been successfully merged
 ### Key Features Implemented
 
 #### 1. **Smart Frontier Detection Pipeline**
+
 - **Status**: ✅ **Fully Implemented**
 - **Method**: `DetectSmartFrontiers()`
 - **Features**:
@@ -358,6 +847,7 @@ The advanced smart frontier exploration algorithms have been successfully merged
   - Multi-stage filtering and cleaning
 
 #### 2. **Multi-Criteria Utility Function**
+
 - **Status**: ✅ **Fully Implemented**
 - **Methods**: `CalculateUtilityScore()`, `SelectBestFrontier()`
 - **Features**:
@@ -367,6 +857,7 @@ The advanced smart frontier exploration algorithms have been successfully merged
   - Weighted combination: $U = w_d \cdot S_d + w_s \cdot S_s + w_I \cdot S_I$
 
 #### 3. **Computer Vision Processing**
+
 - **Status**: ✅ **Fully Implemented**
 - **Methods**: `PreprocessOccupancyGrid()`, `DetectFrontierEdges()`, `MorphologicalCleaning()`
 - **Features**:
@@ -376,6 +867,7 @@ The advanced smart frontier exploration algorithms have been successfully merged
   - Safety margin enforcement around obstacles
 
 #### 4. **DBSCAN Clustering Algorithm**
+
 - **Status**: ✅ **Fully Implemented**
 - **Method**: `DbscanClustering()`
 - **Complexity**: O(n²) for n frontier points
@@ -383,11 +875,13 @@ The advanced smart frontier exploration algorithms have been successfully merged
 - **Features**: Density-based clustering with noise handling
 
 #### 5. **PascalCase Method Naming**
+
 - **Status**: ✅ **Fully Implemented**
 - **Compliance**: All new methods follow PascalCase convention
 - **Examples**: `DetectSmartFrontiers()`, `CalculateUtilityScore()`, `UpdateRobotPosition()`
 
 #### 6. **Comprehensive Doxygen Documentation**
+
 - **Status**: ✅ **Fully Implemented**
 - **Features**:
   - Mathematical formulas in LaTeX notation
@@ -437,6 +931,7 @@ information_weight: 0.4              # Weight for information gain
 ### Integration Testing
 
 The implementation has been integrated with:
+
 - ✅ FlyScan BaseNode lifecycle management
 - ✅ ROS2 parameter system
 - ✅ TF2 transform handling
@@ -464,16 +959,19 @@ frontier_exploration:
 ### Core Algorithm Methods
 
 #### `DetectSmartFrontiers(const nav_msgs::msg::OccupancyGrid& grid)`
+
 **Purpose**: Detects frontiers using advanced computer vision pipeline
 **Returns**: `std::vector<Frontier>` - Clustered and evaluated frontiers
 **Complexity**: O(WH + n²)
 
 #### `SelectBestFrontier(std::vector<Frontier>& frontiers, const nav_msgs::msg::OccupancyGrid& grid)`
+
 **Purpose**: Selects optimal frontier using multi-criteria optimization
 **Returns**: `std::shared_ptr<Frontier>` - Best frontier or nullptr
 **Formula**: $f^* = \arg\max_{f_i} U(f_i)$ subject to $U(f_i) \geq \tau$
 
 #### `CalculateUtilityScore(Frontier& frontier, const nav_msgs::msg::OccupancyGrid& grid)`
+
 **Purpose**: Computes multi-criteria utility score
 **Returns**: `double` - Combined utility score [0,1]
 **Formula**: $U = w_d \cdot S_d + w_s \cdot S_s + w_I \cdot S_I$
@@ -481,16 +979,19 @@ frontier_exploration:
 ### Computer Vision Methods
 
 #### `PreprocessOccupancyGrid(const nav_msgs::msg::OccupancyGrid& grid)`
+
 **Purpose**: Converts ROS occupancy grid to OpenCV format
 **Returns**: `cv::Mat` - Processed binary image
 **Mapping**: -1→127 (unknown), 0→0 (free), >50→scaled (obstacles)
 
 #### `DetectFrontierEdges(const cv::Mat& free_space, const cv::Mat& unknown_space, const cv::Mat& obstacles)`
+
 **Purpose**: Detects frontier boundaries using morphological operations
 **Returns**: `cv::Mat` - Binary frontier edge image
 **Formula**: $F = (Free \cap dilate(Unknown)) \setminus dilate(Obstacles)$
 
 #### `MorphologicalCleaning(const cv::Mat& input)`
+
 **Purpose**: Removes noise and fills gaps in frontier detection
 **Returns**: `cv::Mat` - Cleaned binary image
 **Operations**: Closing followed by opening: $(A \bullet B) \circ B$
@@ -498,21 +999,25 @@ frontier_exploration:
 ### Clustering and Scoring Methods
 
 #### `DbscanClustering(const std::vector<cv::Point>& points, double eps, int min_samples)`
+
 **Purpose**: Clusters frontier points using DBSCAN algorithm
 **Returns**: `std::vector<std::vector<cv::Point>>` - Point clusters
 **Parameters**: ε = 3×resolution, minPts = frontier_threshold
 
 #### `CalculateInformationGain(const Frontier& frontier, const nav_msgs::msg::OccupancyGrid& grid)`
+
 **Purpose**: Estimates potential information gain from exploring frontier
 **Returns**: `double` - Information gain score [0,1]
 **Formula**: $S_I = \frac{|\{p \in B_R(c) : M(p) = -1\}|}{|B_R(c)|}$
 
 #### `CalculateDistanceScore(const Frontier& frontier)`
+
 **Purpose**: Computes distance preference score with sigmoid decay
 **Returns**: `double` - Distance score [0,1]
 **Formula**: $S_d = \frac{1}{1 + \frac{d}{\sigma_d}}$ where $\sigma_d = 10.0$
 
 #### `CalculateSizeScore(const Frontier& frontier)`
+
 **Purpose**: Normalizes frontier size for scoring
 **Returns**: `double` - Size score [0,1]
 **Formula**: $S_s = \min(\frac{|F|}{N_{max}}, 1)$ where $N_{max} = 20$
@@ -520,16 +1025,19 @@ frontier_exploration:
 ### Utility Methods
 
 #### `UpdateRobotPosition()`
+
 **Purpose**: Updates robot position from TF transforms
 **Returns**: `bool` - Success status
 **Transform**: map_frame → robot_frame
 
 #### `GridToWorld(const cv::Point& grid_point, const nav_msgs::msg::OccupancyGrid& grid)`
+
 **Purpose**: Converts grid coordinates to world coordinates
 **Returns**: `Eigen::Vector2d` - World position
 **Formula**: $world = origin + grid \times resolution$
 
 #### `WorldToGrid(const Eigen::Vector2d& world_point, const nav_msgs::msg::OccupancyGrid& grid)`
+
 **Purpose**: Converts world coordinates to grid coordinates  
 **Returns**: `cv::Point` - Grid position
 **Formula**: $grid = \frac{world - origin}{resolution}$

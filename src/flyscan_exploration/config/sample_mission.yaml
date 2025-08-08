@@ -1,0 +1,45 @@
+# Waypoint Mission Configuration
+# Define a list of waypoints for the drone to visit sequentially
+# All positions are in the map frame, altitudes in NED (negative = up)
+
+mission:
+  name: "sample_survey_mission"
+  description: "Sample waypoint mission for autonomous survey"
+  
+  # Mission parameters
+  waypoint_tolerance: 0.5          # Distance tolerance to consider waypoint reached (m)
+  hover_time: 3.0                  # Time to hover at each waypoint (seconds)
+  max_velocity: 1.0                # Maximum velocity between waypoints (m/s)
+  safety_margin: 1.5               # Safety margin for obstacle avoidance (m)
+  
+  # List of waypoints to visit
+  # Each waypoint has: position (x,y,z), orientation (yaw in degrees), and optional work_time
+  waypoints:
+    - position: [0.0, 0.0, -1.5]    # Start position: origin, 1.5m altitude
+      yaw: 0.0                      # Face north
+      work_time: 2.0                # Hover for 2 seconds
+      description: "Mission start point"
+      
+    - position: [5.0, 0.0, -1.5]    # Move east 5m
+      yaw: 90.0                     # Face east  
+      work_time: 3.0                # Take measurements for 3 seconds
+      description: "Measurement point 1"
+      
+    - position: [5.0, 5.0, -2.0]    # Move north 5m, climb to 2m altitude
+      yaw: 180.0                    # Face south
+      work_time: 4.0                # Extended measurement time
+      description: "Measurement point 2"
+      
+    - position: [0.0, 5.0, -2.0]    # Move west 5m
+      yaw: 270.0                    # Face west
+      work_time: 2.0                
+      description: "Measurement point 3"
+      
+    - position: [0.0, 0.0, -1.5]    # Return to start, lower altitude
+      yaw: 0.0                      # Face north
+      work_time: 1.0                # Brief pause before mission end
+      description: "Mission end point"
+
+  # Mission completion behavior
+  completion_action: "hover"        # Options: "hover", "land", "rtl" (return to launch)
+  completion_position: [0.0, 0.0, -1.5]  # Where to go after mission (if hover)

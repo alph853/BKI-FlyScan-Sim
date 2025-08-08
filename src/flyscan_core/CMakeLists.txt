@@ -31,37 +31,34 @@ find_package(flyscan_common REQUIRED)
 
 set(NODE_TARGETS)
 
-macro(add_target name type source deps libs)
-  if(${type} STREQUAL "executable")
-    add_executable(${name} ${source})
-    target_include_directories(${name}
-      PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    )
-  elseif(${type} STREQUAL "library")
-    add_library(${name} SHARED ${source})
-    target_include_directories(${name}
-      PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    )
-  endif()
-
-  target_link_libraries(${name} ${libs})
-
-  ament_target_dependencies(${name} ${deps})
-
-  list(APPEND NODE_TARGETS ${name})
-endmacro()
-
-add_target(life_monitor   executable  src/life_monitor.cpp  flyscan_common  "")
-add_target(base_node      library     src/base_node.cpp     flyscan_common  "")
-
-add_target(life_monitor_component library
-  src/life_monitor.cpp
-  flyscan_common
-  ""
+# Build life_monitor executable
+add_executable(life_monitor src/life_monitor.cpp)
+target_include_directories(life_monitor
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
+ament_target_dependencies(life_monitor flyscan_common)
+list(APPEND NODE_TARGETS life_monitor)
+
+# Build base_node library
+add_library(base_node SHARED src/base_node.cpp)
+target_include_directories(base_node
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(base_node flyscan_common)
+list(APPEND NODE_TARGETS base_node)
+
+# Build life_monitor_component library
+add_library(life_monitor_component SHARED src/life_monitor.cpp)
+target_include_directories(life_monitor_component
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(life_monitor_component flyscan_common)
+list(APPEND NODE_TARGETS life_monitor_component)
 rclcpp_components_register_nodes(life_monitor_component "flyscan::core::LifeMonitor")
 
 # ───────────────────────────

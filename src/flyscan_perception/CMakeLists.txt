@@ -60,29 +60,6 @@ find_package(flyscan_common REQUIRED)
 
 set(NODE_TARGETS)
 
-macro(add_target name type source deps libs)
-  if(${type} STREQUAL "executable")
-    add_executable(${name} ${source})
-    target_include_directories(${name}
-      PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    )
-  elseif(${type} STREQUAL "library")
-    add_library(${name} SHARED ${source})
-    target_include_directories(${name}
-      PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    )
-  endif()
-
-  target_link_libraries(${name} ${libs})
-
-  ament_target_dependencies(${name} ${deps})
-
-  list(APPEND NODE_TARGETS ${name})
-endmacro()
-
 set(semantic_perception_packages
   rclcpp
   rclcpp_lifecycle
@@ -102,11 +79,15 @@ set(semantic_perception_libs
   onnxruntime
 )
 
-add_target(semantic_perception executable
-  "src/semantic_perception.cpp"
-  "${semantic_perception_packages}"
-  "${semantic_perception_libs}"
+# Build semantic_perception executable
+add_executable(semantic_perception src/semantic_perception.cpp)
+target_include_directories(semantic_perception
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
+target_link_libraries(semantic_perception ${semantic_perception_libs})
+ament_target_dependencies(semantic_perception ${semantic_perception_packages})
+list(APPEND NODE_TARGETS semantic_perception)
 
 
 # target_include_directories(semantic_perception PUBLIC
@@ -126,6 +107,10 @@ install(TARGETS ${NODE_TARGETS}
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/ DESTINATION include/)
+
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
 
 # ───────────────────────────
 # Testing & Linting

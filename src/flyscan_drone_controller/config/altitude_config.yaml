@@ -1,0 +1,24 @@
+# PX4 Controller Altitude Configuration
+# All altitudes are in NED frame: negative values mean UP from ground level
+
+px4_controller:
+  ros__parameters:
+    # Takeoff altitude (NED: negative is up)
+    # -1.5 means 1.5 meters above ground level
+    takeoff_altitude: -1.5
+    
+    # Minimum flight altitude (NED: negative is up)  
+    # -1.0 means minimum 1.0 meter above ground level
+    # The drone will never go below this altitude during flight
+    min_flight_altitude: -1.0
+    
+    # Position step size for teleop movements (meters)
+    teleop_position_step: 0.5
+    
+    # Safety margins for navigation
+    waypoint_tolerance: 0.3
+    min_obstacle_distance: 1.5
+    navigation_step_size: 0.5
+    
+    # Recovery maneuver altitude offset
+    recovery_altitude_offset: 1.0

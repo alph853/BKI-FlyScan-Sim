@@ -29,6 +29,10 @@ private:
     void PrintInstructions();
     void StartEightShapePattern();
     void ExecuteEightShapeStep();
+    
+    // Multi-drone helper methods
+    std::string GetControllerTopicName(const std::string& topic_suffix) const;
+    std::string GetControllerServiceName(const std::string& service_suffix) const;
 
     // ROS2 interfaces
     rclcpp::Client<flyscan_interfaces::srv::SetControlMode>::SharedPtr set_control_mode_client_;
@@ -54,6 +58,9 @@ private:
     static constexpr float YAW_STEP = 10.0f;  // degrees
     static constexpr float EIGHT_SHAPE_RADIUS = 2.0f;  // meters
     static constexpr float EIGHT_SHAPE_SPEED = 0.3f;   // m/s
+    
+    // Multi-drone support
+    int drone_id_;  // Drone ID for multi-drone support (1 = first drone)
 };
 
 } // namespace drone_controller

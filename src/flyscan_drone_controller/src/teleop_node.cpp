@@ -3,7 +3,6 @@
 #include <signal.h>
 
 #include "flyscan_drone_controller/teleop_node.hpp"
-#include "flyscan_drone_controller/constants.hpp"
 
 using namespace std::chrono_literals;
 
@@ -13,9 +12,17 @@ namespace drone_controller {
 TeleopNode::TeleopNode() 
     : Node("teleop_node"), terminal_configured_(false), teleop_active_(false) {
     
-    // Initialize ROS2 interfaces
-    set_control_mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>(srv::SET_CONTROL_MODE);
-    teleop_pub_ = this->create_publisher<flyscan_interfaces::msg::TeleopCommand>(topic::TELEOP_COMMAND, 10);
+    // Declare and get drone_id parameter for multi-drone support
+    if (!this->has_parameter("drone_id")) {
+        this->declare_parameter("drone_id", 0);
+    }
+    drone_id_ = this->get_parameter("drone_id").as_int();
+    
+    RCLCPP_INFO(this->get_logger(), "Teleop Node initialized for drone %d", drone_id_);
+    
+    // Initialize ROS2 interfaces with drone-specific topics
+    set_control_mode_client_ = this->create_client<flyscan_interfaces::srv::SetControlMode>(GetControllerServiceName("/set_control_mode"));
+    teleop_pub_ = this->create_publisher<flyscan_interfaces::msg::TeleopCommand>(GetControllerTopicName("/teleop_command"), 10);
 
     // Initialize terminal for keyboard input
     if (!InitializeTerminal()) {
@@ -242,7 +249,7 @@ char TeleopNode::Getch() {
 }
 
 void TeleopNode::PrintInstructions() {
-    std::cout << "\n=== TELEOP CONTROL ACTIVE ===\n";
+    std::cout << "\n=== TELEOP CONTROL ACTIVE (Drone " << drone_id_ << ") ===\n";
     std::cout << "W/S: Move Forward/Backward\n";
     std::cout << "A/D: Move Left/Right\n"; 
     std::cout << "Q/E: Move Up/Down\n";
@@ -325,6 +332,14 @@ void TeleopNode::ExecuteEightShapeStep() {
     }
     
     SendTeleopCommand();
+}
+
+std::string TeleopNode::GetControllerTopicName(const std::string& topic_suffix) const {
+    return (drone_id_ == 0) ? "/px4_controller" + topic_suffix : "/px4_controller_" + std::to_string(drone_id_) + topic_suffix;
+}
+
+std::string TeleopNode::GetControllerServiceName(const std::string& service_suffix) const {
+    return (drone_id_ == 0) ? "/px4_controller" + service_suffix : "/px4_controller_" + std::to_string(drone_id_) + service_suffix;
 }
 
 } // namespace drone_controller

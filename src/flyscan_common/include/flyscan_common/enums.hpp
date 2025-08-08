@@ -32,6 +32,12 @@ enum class OperationStatus : uint8_t
     kNotImplemented = 7,
     kAlreadyExists  = 8,
     kNotFound       = 9,
+    kBusy           = 10,
+    kNavigationError = 11,
+    kFileError      = 12,
+    kServiceError   = 13,
+    kInvalidState   = 14,
+    kInvalidIndex   = 15,
 
     kUnknown        = 99,
 };
@@ -49,6 +55,7 @@ enum class NodeType : uint8_t
     kManaging    = 5,
     kVision      = 6,
     kController  = 7,
+    kMission     = 8,
 
     kUnknown     = 99,
 };
@@ -93,6 +100,18 @@ inline std::string OperationStatusToString(const OperationStatus& status)
             return "TIMEOUT";
         case OperationStatus::kNotImplemented:
             return "NOT_IMPLEMENTED";
+        case OperationStatus::kBusy:
+            return "BUSY";
+        case OperationStatus::kNavigationError:
+            return "NAVIGATION_ERROR";
+        case OperationStatus::kFileError:
+            return "FILE_ERROR";
+        case OperationStatus::kServiceError:
+            return "SERVICE_ERROR";
+        case OperationStatus::kInvalidState:
+            return "INVALID_STATE";
+        case OperationStatus::kInvalidIndex:
+            return "INVALID_INDEX";
         default:
             return "UNKNOWN";
     }
@@ -116,6 +135,10 @@ inline std::string NodeTypeToString(const NodeType& type)
             return "Managing";
         case NodeType::kVision:
             return "Vision";
+        case NodeType::kController:
+            return "Controller";
+        case NodeType::kMission:
+            return "Mission";
         default:
             return "Unknown";
     }

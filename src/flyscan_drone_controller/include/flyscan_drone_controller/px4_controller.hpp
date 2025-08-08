@@ -30,8 +30,16 @@
 #include <px4_msgs/msg/vehicle_land_detected.hpp>
 
 #include <flyscan_interfaces/srv/set_control_mode.hpp>
+#include <flyscan_interfaces/srv/navigate_to_pose.hpp>
 #include <flyscan_interfaces/msg/teleop_command.hpp>
+#include <flyscan_interfaces/msg/frontier_array.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 #include "flyscan_core/base_node.hpp"
 #include "flyscan_common/enums.hpp"
@@ -43,6 +51,14 @@ using flyscan::common::OperationStatus;
 using flyscan::common::NodeType;
 using flyscan::common::ControlMode;
 using flyscan::core::BaseNode;
+
+
+enum class NavigationState {
+    kIdle,             // Not navigating
+    kPlanning,         // Computing safe path
+    kNavigating,       // Following computed path
+    kObstacleAvoidance // Avoiding obstacles
+};
 
 struct Position {
     float north_m = 0.0f;   ///< North position in meters (NED frame)
@@ -154,16 +170,23 @@ private:
     void TeleopCommandCallback(const flyscan_interfaces::msg::TeleopCommand::SharedPtr msg);
 
     /**
-     * @brief Callback for exploration goal messages
-     * @param msg Exploration goal message
+     * @brief Callback for ranked frontiers list
+     * @param msg FrontierArray message with ranked frontiers
      */
-    void ExplorationGoalCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+    void FrontiersRankedCallback(const flyscan_interfaces::msg::FrontierArray::SharedPtr msg);
+    
+    /**
+     * @brief Process frontier goal in autonomous mode
+     * @param frontier_goal The frontier goal to process
+     */
+    void ProcessFrontierGoal(const geometry_msgs::msg::PoseStamped& frontier_goal);
+    
 
     /**
      * @brief Timer callback for continuous setpoint publishing
      */
     void SetpointTimerCallback();
-
+    
     /**ArmVehicle
      * @brief Publish offboard control mode message
      */
@@ -198,6 +221,88 @@ private:
      */
     void TransformBodyToWorld(float body_x, float body_y, float current_yaw_rad, float& world_x, float& world_y);
 
+    /**
+     * @brief Transform frontier position considering camera field of view
+     * @param frontier_pos Frontier position from exploration
+     * @param optimal_pos Output optimal drone position for camera coverage
+     * @param optimal_yaw Output optimal yaw angle to face frontier
+     */
+    void CalculateForwardCameraDirection(const geometry_msgs::msg::Point& frontier_pos,
+                                        geometry_msgs::msg::Point& forward_pos, float& forward_yaw);
+                                        
+    void TransformPointCloudFromCamera(const pcl::PointCloud<pcl::PointXYZ>::Ptr& camera_cloud,
+                                      pcl::PointCloud<pcl::PointXYZ>::Ptr& world_cloud);
+
+    /**
+     * @brief Get topic prefix for multi-drone support
+     * @return Empty string for drone 1, "/px4_{drone_id}" for others
+     */
+    std::string GetTopicPrefix() const;
+
+    /**
+     * @brief Get controller-specific topic name for multi-drone support
+     * @param topic_suffix The topic suffix (e.g., "/teleop_command")
+     * @return Topic name with appropriate controller prefix
+     */
+    std::string GetControllerTopicName(const std::string& topic_suffix) const;
+
+    /**
+     * @brief Get camera-specific topic name for multi-drone support
+     * @param topic_name The full topic name (e.g., "/camera/depth/points")
+     * @return Topic name with appropriate drone prefix
+     */
+    std::string GetCameraTopicName(const std::string& topic_name) const;
+
+    // ============================================================================
+    // Safe Navigation Methods
+    // ============================================================================
+    
+    /**
+     * @brief Check if path to target is obstacle-free using point cloud
+     * @param start Start position
+     * @param end Target position
+     * @return True if path is clear
+     */
+    bool IsPathClearPointCloud(const geometry_msgs::msg::Point& start, 
+                              const geometry_msgs::msg::Point& end);
+    
+    /**
+     * @brief Calculate next navigation step towards target
+     * @param current_pos Current position
+     * @param target_pos Target position
+     * @return Next step position
+     */
+    geometry_msgs::msg::Point CalculateNextNavigationStep(const geometry_msgs::msg::Point& current_pos,
+                                                         const geometry_msgs::msg::Point& target_pos);
+    
+    /**
+     * @brief Pick next frontier from ranked list when current path is blocked
+     * @return True if a new frontier was selected, false if no alternatives available
+     */
+    bool SelectNextFrontierFromList();
+    
+    /**
+     * @brief Execute obstacle avoidance maneuver
+     * @param obstacle_direction Direction of detected obstacle (radians)
+     * @return New safe direction to navigate
+     */
+    double ComputeAvoidanceDirection(double obstacle_direction);
+    
+    /**
+     * @brief Timer callback for point cloud-based navigation execution
+     */
+    void PointCloudNavigationTimerCallback();
+    
+        
+    /**
+     * @brief Callback for obstacle/map data
+     */
+    void ObstacleMapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+    
+    /**
+     * @brief Callback for point cloud obstacle data
+     */
+    void PointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
     
     // ============================================================================
     // Mode Management Methods
@@ -237,6 +342,12 @@ private:
      */
     OperationStatus EnterAutonomousMode();
     
+    /**
+     * @brief Enter mission mode for waypoint execution
+     * @return True if successful
+     */
+    OperationStatus EnterMissionMode();
+    
     // ============================================================================
     // ROS2 Publishers and Subscribers
     // ============================================================================
@@ -249,11 +360,14 @@ private:
     rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr vehicle_status_sub_;
     rclcpp::Subscription<px4_msgs::msg::VehicleLandDetected>::SharedPtr vehicle_land_detected_sub_;
     rclcpp::Subscription<flyscan_interfaces::msg::TeleopCommand>::SharedPtr teleop_command_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr exploration_goal_sub_;
+    rclcpp::Subscription<flyscan_interfaces::msg::FrontierArray>::SharedPtr frontiers_ranked_sub_;
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr obstacle_map_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
 
     rclcpp::Service<flyscan_interfaces::srv::SetControlMode>::SharedPtr set_control_mode_service_;
     
     rclcpp::TimerBase::SharedPtr setpoint_timer_;
+    rclcpp::TimerBase::SharedPtr safe_navigation_timer_;
 
     // Timer-based wait state checking
     rclcpp::TimerBase::SharedPtr arm_check_timer_;
@@ -270,6 +384,23 @@ private:
     std::atomic<bool> in_air_{false};
     std::atomic<ControlMode> current_mode_{ControlMode::kManual};
     
+    
+    // Safe navigation state
+    std::atomic<NavigationState> navigation_state_{NavigationState::kIdle};
+    geometry_msgs::msg::PoseStamped current_navigation_target_;
+    std::vector<geometry_msgs::msg::Point> current_waypoints_;
+    size_t current_waypoint_index_{0};
+    nav_msgs::msg::OccupancyGrid::SharedPtr obstacle_map_;
+    double navigation_max_velocity_{1.0};
+    double navigation_safety_margin_{1.5};
+    int navigation_attempt_counter_{0};
+    std::mutex navigation_mutex_;
+    
+    // Point cloud navigation state
+    pcl::PointCloud<pcl::PointXYZ>::Ptr current_point_cloud_;
+    pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr kdtree_;
+    std::mutex point_cloud_mutex_;
+    
     // ============================================================================
     // Thread-Safe
     // ============================================================================
@@ -277,9 +408,12 @@ private:
     Position current_position_setpoint_;
     flyscan_interfaces::msg::TeleopCommand current_teleop_command_;
     geometry_msgs::msg::PoseStamped current_exploration_goal_;
+    flyscan_interfaces::msg::FrontierArray current_frontiers_ranked_;
+    size_t current_frontier_index_{0};  // Index of currently targeted frontier
     std::mutex position_setpoint_mutex_;
     std::mutex teleop_command_mutex_;
     std::mutex exploration_goal_mutex_;
+    std::mutex frontiers_mutex_;
     
     px4_msgs::msg::VehicleLocalPosition current_position_;
     px4_msgs::msg::VehicleStatus current_status_;
@@ -293,10 +427,39 @@ private:
     
     int setpoint_rate_ms_;
     float takeoff_altitude_;
+    double min_flight_altitude_;      // Minimum altitude to maintain (NED: negative is up)
     float teleop_position_step_;
     float yaw_step_;
     ControlMode initial_control_mode_;
     
+    // Camera parameters for frontier exploration
+    double camera_fov_horizontal_;       // Horizontal field of view in degrees
+    double optimal_camera_distance_;     // Optimal distance to maintain from frontier
+    double camera_offset_x_;             // Camera forward offset from drone center (meters)
+    double camera_offset_z_;             // Camera down offset from drone center (meters, NED)
+    
+    
+    // Safe navigation parameters
+    double waypoint_tolerance_;         // Distance tolerance to consider waypoint reached
+    double obstacle_detection_range_;   // Range for obstacle detection (m)
+    double min_obstacle_distance_;      // Minimum distance to maintain from obstacles (m)
+    double path_smoothing_factor_;      // Factor for path smoothing (0.0 to 1.0)
+    
+    // Point cloud navigation parameters
+    double point_cloud_downsample_leaf_size_;  // Voxel grid leaf size for downsampling
+    double obstacle_check_ahead_distance_;     // Distance to check ahead for obstacles
+    double navigation_step_size_;              // Step size for gradual navigation
+    int max_navigation_attempts_;              // Maximum attempts when path is blocked
+    double autonomous_fixed_height_;           // Fixed height to maintain in autonomous mode
+    
+    // Multi-drone support
+    int drone_id_;                            // Drone ID for multi-drone support (1 = first drone)
+    double yaw_tolerance_;                     // Yaw tolerance in degrees for navigation
+    
+    // Enhanced obstacle avoidance for small drones
+    double drone_radius_;                      // Physical radius of the drone
+    int min_obstacle_points_;                  // Minimum points needed to consider as obstacle
+
 };
 
 } // namespace drone_controller

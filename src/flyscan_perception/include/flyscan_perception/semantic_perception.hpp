@@ -178,6 +178,13 @@ private:
      * @brief Callback for curl write operations
      */
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
+    
+    /**
+     * @brief Get camera topic name with appropriate drone prefix
+     * @param topic_name The base topic name
+     * @return Topic name with drone prefix for multi-drone support
+     */
+    std::string GetCameraTopicName(const std::string& topic_name) const;
 
     // ============================================================================
     // ROS2 Publishers and Subscribers
@@ -255,6 +262,9 @@ private:
     double nms_threshold_;
     bool gpu_enabled_;
     std::string camera_frame_;
+    
+    // Multi-drone support
+    int drone_id_;  // Drone ID for multi-drone support (1 = first drone)
 };
 
 } // namespace perception
