@@ -44,8 +44,6 @@ using RequestRecoverySrv = flyscan_interfaces::srv::RequestRecovery;
 
 /**
  * @brief Base class for autonomous UAV nodes with lifecycle and bond-based monitoring
- * @note This node requires execution in a MultiThreadedExecutor for blocking service calls
- * like RegisterWithLifeMonitor(). Single-threaded execution may deadlock or hang.
  */
 class BaseNode : public rclcpp_lifecycle::LifecycleNode
 {
