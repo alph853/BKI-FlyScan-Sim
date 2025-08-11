@@ -327,10 +327,6 @@ void FrontierExplorer::ExplorationTimerCallback() {
 }
 
 
-
-
-
-
 // ============================================================================
 // Optimized Frontier Detection Implementation
 // ============================================================================

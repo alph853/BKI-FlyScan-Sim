@@ -37,6 +37,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/NodeHeartbeat.msg"
 
   "msg/TeleopCommand.msg"
+  "msg/VehicleState.msg"
+  "msg/ControllerEvent.msg"
   "msg/BoundingBox.msg"
   "msg/Detection.msg"
   "msg/DetectionArray.msg"
@@ -50,6 +52,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   "srv/SetControlMode.srv"
   "srv/NavigateToPose.srv"
+  
+  "action/ComputeFrontiers.action"
+  "action/FollowPath.action"
+  "action/NavigateToPose3D.action"
 
   DEPENDENCIES std_msgs geometry_msgs nav_msgs sensor_msgs builtin_interfaces
 )

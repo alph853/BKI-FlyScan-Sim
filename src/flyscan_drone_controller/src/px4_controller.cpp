@@ -56,10 +56,10 @@ PX4Controller::PX4Controller(const rclcpp::NodeOptions & options,
         this->declare_parameter("setpoint_rate_ms", 50);
     }
     if (!this->has_parameter("takeoff_altitude")) {
-        this->declare_parameter("takeoff_altitude", -1.5);  // NED: negative is up
+        this->declare_parameter("takeoff_altitude", -1.5); // up
     }
     if (!this->has_parameter("min_flight_altitude")) {
-        this->declare_parameter("min_flight_altitude", -1.0);  // NED: minimum 1m above ground
+        this->declare_parameter("min_flight_altitude", -1.0);
     }
     if (!this->has_parameter("teleop_position_step")) {
         this->declare_parameter("teleop_position_step", 0.5);
@@ -69,58 +69,6 @@ PX4Controller::PX4Controller(const rclcpp::NodeOptions & options,
     }
     if (!this->has_parameter("initial_control_mode")) {
         this->declare_parameter("initial_control_mode", static_cast<int>(ControlMode::kManual));
-    }
-    if (!this->has_parameter("camera_fov_horizontal")) {
-        this->declare_parameter("camera_fov_horizontal", 90.0);
-    }
-    if (!this->has_parameter("optimal_camera_distance")) {
-        this->declare_parameter("optimal_camera_distance", 3.0);
-    }
-    if (!this->has_parameter("camera_offset_x")) {
-        this->declare_parameter("camera_offset_x", 0.3);  // Camera forward offset from drone center
-    }
-    if (!this->has_parameter("camera_offset_z")) {
-        this->declare_parameter("camera_offset_z", -0.05); // Camera down offset from drone center (NED: negative is down)
-    }
-
-    // Safe navigation parameters
-    if (!this->has_parameter("waypoint_tolerance")) {
-        this->declare_parameter("waypoint_tolerance", 0.3);
-    }
-    if (!this->has_parameter("obstacle_detection_range")) {
-        this->declare_parameter("obstacle_detection_range", 5.0);
-    }
-    if (!this->has_parameter("min_obstacle_distance")) {
-        this->declare_parameter("min_obstacle_distance", 0.8);  // Reduced for small drone
-    }
-    if (!this->has_parameter("path_smoothing_factor")) {
-        this->declare_parameter("path_smoothing_factor", 0.3);
-    }
-    
-    // Point cloud navigation parameters
-    if (!this->has_parameter("point_cloud_downsample_leaf_size")) {
-        this->declare_parameter("point_cloud_downsample_leaf_size", 0.15);  // Coarser sampling for small obstacles
-    }
-    if (!this->has_parameter("obstacle_check_ahead_distance")) {
-        this->declare_parameter("obstacle_check_ahead_distance", 1.2);  // Reduced for small drone
-    }
-    if (!this->has_parameter("navigation_step_size")) {
-        this->declare_parameter("navigation_step_size", 1.0);  // Smaller steps for tight navigation
-    }
-    if (!this->has_parameter("drone_radius")) {
-        this->declare_parameter("drone_radius", 0.25);  // Small drone physical radius
-    }
-    if (!this->has_parameter("min_obstacle_points")) {
-        this->declare_parameter("min_obstacle_points", 3);  // Minimum points to consider obstacle
-    }
-    if (!this->has_parameter("max_navigation_attempts")) {
-        this->declare_parameter("max_navigation_attempts", 20);
-    }
-    if (!this->has_parameter("yaw_tolerance")) {
-        this->declare_parameter("yaw_tolerance", 5.0);  // Yaw tolerance in degrees
-    }
-    if (!this->has_parameter("autonomous_fixed_height")) {
-        this->declare_parameter("autonomous_fixed_height", -0.8);  // NED: negative is up
     }
     
     // Multi-drone support parameter
@@ -157,27 +105,6 @@ OperationStatus PX4Controller::HandleConfigure() {
         teleop_position_step_ = this->get_parameter("teleop_position_step").as_double();
         yaw_step_ = this->get_parameter("yaw_step").as_double();
         initial_control_mode_ = static_cast<ControlMode>(this->get_parameter("initial_control_mode").as_int());
-        camera_fov_horizontal_ = this->get_parameter("camera_fov_horizontal").as_double();
-        optimal_camera_distance_ = this->get_parameter("optimal_camera_distance").as_double();
-        camera_offset_x_ = this->get_parameter("camera_offset_x").as_double();
-        camera_offset_z_ = this->get_parameter("camera_offset_z").as_double();
-        
-        
-        // Cache safe navigation parameters
-        waypoint_tolerance_ = this->get_parameter("waypoint_tolerance").as_double();
-        obstacle_detection_range_ = this->get_parameter("obstacle_detection_range").as_double();
-        min_obstacle_distance_ = this->get_parameter("min_obstacle_distance").as_double();
-        path_smoothing_factor_ = this->get_parameter("path_smoothing_factor").as_double();
-        
-        // Cache point cloud navigation parameters
-        point_cloud_downsample_leaf_size_ = this->get_parameter("point_cloud_downsample_leaf_size").as_double();
-        obstacle_check_ahead_distance_ = this->get_parameter("obstacle_check_ahead_distance").as_double();
-        navigation_step_size_ = this->get_parameter("navigation_step_size").as_double();
-        max_navigation_attempts_ = this->get_parameter("max_navigation_attempts").as_int();
-        autonomous_fixed_height_ = this->get_parameter("autonomous_fixed_height").as_double();
-        yaw_tolerance_ = this->get_parameter("yaw_tolerance").as_double();
-        drone_radius_ = this->get_parameter("drone_radius").as_double();
-        min_obstacle_points_ = this->get_parameter("min_obstacle_points").as_int();
         
         // Cache drone_id for multi-drone support
         drone_id_ = this->get_parameter("drone_id").as_int();
@@ -196,6 +123,12 @@ OperationStatus PX4Controller::HandleConfigure() {
             topic_prefix + "/fmu/in/trajectory_setpoint", qos);
         vehicle_command_publisher_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
             topic_prefix + "/fmu/in/vehicle_command", qos);
+            
+        vehicle_state_publisher_ = this->create_publisher<flyscan_interfaces::msg::VehicleState>(
+            GetControllerTopicName("/vehicle_state"), rclcpp::QoS(1).reliable());
+            
+        controller_events_publisher_ = this->create_publisher<flyscan_interfaces::msg::ControllerEvent>(
+            GetControllerTopicName("/events"), rclcpp::QoS(10).reliable());
 
         RCLCPP_INFO(this->get_logger(), "Created PX4 command publishers");
         
@@ -216,34 +149,36 @@ OperationStatus PX4Controller::HandleConfigure() {
             GetControllerTopicName("/teleop_command"), qos,
             std::bind(&PX4Controller::TeleopCommandCallback, this, _1));
 
-        frontiers_ranked_sub_ = this->create_subscription<flyscan_interfaces::msg::FrontierArray>(
-            "/frontiers_ranked", qos,
-            std::bind(&PX4Controller::FrontiersRankedCallback, this, _1));
-            
-        obstacle_map_sub_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
-            "/map", qos,
-            std::bind(&PX4Controller::ObstacleMapCallback, this, _1));
-            
-        point_cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            GetCameraTopicName("/camera/depth/points"), qos,
-            std::bind(&PX4Controller::PointCloudCallback, this, _1));
+        trajectory_sub_ = this->create_subscription<nav_msgs::msg::Path>(
+            GetControllerTopicName("/trajectory"), qos,
+            std::bind(&PX4Controller::TrajectoryCallback, this, _1));
 
         // create services
         set_control_mode_service_ = this->create_service<flyscan_interfaces::srv::SetControlMode>(
             GetControllerTopicName("/set_control_mode"),
             std::bind(&PX4Controller::HandleSetControlModeService, this, _1, _2));
+        
+        // create action servers
+        follow_path_server_ = rclcpp_action::create_server<flyscan_interfaces::action::FollowPath>(
+            this,
+            GetControllerTopicName("/follow_path"),
+            std::bind(&PX4Controller::handle_follow_path_goal, this, std::placeholders::_1, std::placeholders::_2),
+            std::bind(&PX4Controller::handle_follow_path_cancel, this, std::placeholders::_1),
+            std::bind(&PX4Controller::handle_follow_path_accepted, this, std::placeholders::_1));
+            
+        navigate_to_pose_server_ = rclcpp_action::create_server<flyscan_interfaces::action::NavigateToPose3D>(
+            this,
+            GetControllerTopicName("/navigate_to_pose_3d"),
+            std::bind(&PX4Controller::handle_navigate_to_pose_goal, this, std::placeholders::_1, std::placeholders::_2),
+            std::bind(&PX4Controller::handle_navigate_to_pose_cancel, this, std::placeholders::_1),
+            std::bind(&PX4Controller::handle_navigate_to_pose_accepted, this, std::placeholders::_1));
 
         // Create timers
         setpoint_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(setpoint_rate_ms_),
             std::bind(&PX4Controller::SetpointTimerCallback, this));
         setpoint_timer_->cancel();
-        
-        safe_navigation_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100),  // 10 Hz for navigation updates
-            std::bind(&PX4Controller::PointCloudNavigationTimerCallback, this));
-        safe_navigation_timer_->cancel();
-        
+
         current_point_cloud_ = nullptr;
         kdtree_.reset(new pcl::KdTreeFLANN<pcl::PointXYZ>());
 
@@ -295,10 +230,6 @@ OperationStatus PX4Controller::HandleCleanup() {
     
     if (setpoint_timer_) {
         setpoint_timer_->cancel();
-    }
-    
-    if (safe_navigation_timer_) {
-        safe_navigation_timer_->cancel();
     }
     
     RCLCPP_INFO(this->get_logger(), "PX4 Controller cleanup complete");
@@ -371,7 +302,6 @@ OperationStatus PX4Controller::SwitchToMode(ControlMode new_mode)
             break;
         case ControlMode::kTeleop:
             status = EnterTeleopMode();
-            safe_navigation_timer_->cancel();
             break;
         case ControlMode::kAutonomous:
             status = EnterAutonomousMode();
@@ -436,7 +366,6 @@ OperationStatus PX4Controller::EnterAutonomousMode()
         RCLCPP_INFO(this->get_logger(), "Already in AUTONOMOUS mode - no action taken");
         return OperationStatus::kOK;
     }
-    safe_navigation_timer_->reset();
     navigation_state_ = NavigationState::kIdle;
 
     OperationStatus offboard_status = StartOffboardMode();
@@ -465,105 +394,6 @@ OperationStatus PX4Controller::EnterMissionMode() {
     RCLCPP_INFO(this->get_logger(), "MISSION mode active - ready for waypoint missions");
     return OperationStatus::kOK;
 }
-
-void PX4Controller::FrontiersRankedCallback(const flyscan_interfaces::msg::FrontierArray::SharedPtr msg) 
-{
-    if (current_mode_ != ControlMode::kAutonomous) {
-        return;
-    }
-    std::lock_guard<std::mutex> lock(frontiers_mutex_);
-    current_frontiers_ranked_ = *msg;
-
-    if (navigation_state_ == NavigationState::kNavigating) {
-        RCLCPP_DEBUG(this->get_logger(), "Navigation in progress, cannot process new frontiers");
-        return;
-    }
-
-    current_frontier_index_ = 0;
-    navigation_state_ = NavigationState::kNavigating;
-
-    geometry_msgs::msg::PoseStamped new_frontier_goal;
-    new_frontier_goal.header.stamp = this->now();
-    new_frontier_goal.header.frame_id = "map";
-    new_frontier_goal.pose.position = current_frontiers_ranked_.frontiers[current_frontier_index_].center;
-    new_frontier_goal.pose.orientation.w = 1.0;
-
-    ProcessFrontierGoal(new_frontier_goal); 
-    RCLCPP_DEBUG(this->get_logger(), "Received %zu ranked frontiers, reset index to 0", 
-                msg->frontiers.size());
-}
-
-void PX4Controller::ProcessFrontierGoal(const geometry_msgs::msg::PoseStamped& frontier_goal) 
-{
-    RCLCPP_INFO(this->get_logger(), "Processing frontier: (%.2f, %.2f, %.2f)", 
-               frontier_goal.pose.position.x, frontier_goal.pose.position.y, frontier_goal.pose.position.z);
-
-    // Calculate forward movement direction based on camera scanning cone
-    geometry_msgs::msg::Point forward_position;
-    float forward_yaw;
-    CalculateForwardCameraDirection(frontier_goal.pose.position, forward_position, forward_yaw);
-
-    RCLCPP_INFO(this->get_logger(), "Started forward navigation in camera scanning direction: N=%.2f, E=%.2f, D=%.2f, Yaw=%.1f", 
-                forward_position.x, forward_position.y, forward_position.z, forward_yaw);
-
-    geometry_msgs::msg::PoseStamped target_pose;
-    target_pose.header.stamp = this->now();
-    target_pose.header.frame_id = "map";
-    target_pose.pose.position = forward_position;
-    
-    // Convert yaw to quaternion
-    tf2::Quaternion q;
-    q.setRPY(0, 0, forward_yaw * M_PI / 180.0);
-    target_pose.pose.orientation = tf2::toMsg(q);
-    
-    current_navigation_target_ = target_pose;
-    navigation_max_velocity_ = 1.0;
-    navigation_safety_margin_ = drone_radius_ + 0.3;  // Dynamic margin based on drone size
-    navigation_attempt_counter_ = 0;
-
-    RCLCPP_INFO(this->get_logger(), "Started point cloud navigation to target (%.2f, %.2f, %.2f)", 
-                target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z);
-
-}
-
-bool PX4Controller::SelectNextFrontierFromList() {
-    std::lock_guard<std::mutex> lock(frontiers_mutex_);
-    
-    // Check if we have any frontiers available
-    if (current_frontiers_ranked_.frontiers.empty()) {
-        RCLCPP_WARN(this->get_logger(), "No frontiers available in ranked list");
-        return false;
-    }
-    
-    // Move to next frontier in the list
-    current_frontier_index_++;
-    
-    // Check if we've exhausted all available frontiers
-    if (current_frontier_index_ >= current_frontiers_ranked_.frontiers.size()) {
-        current_frontier_index_ = 0;
-        navigation_state_ = NavigationState::kIdle;
-    }
-    
-    // Get the next frontier from the list
-    const auto& next_frontier = current_frontiers_ranked_.frontiers[current_frontier_index_];
-    
-    RCLCPP_INFO(this->get_logger(), "Selecting next frontier from list: frontier %zu/%zu at (%.2f, %.2f) with utility %.3f",
-                current_frontier_index_ + 1, current_frontiers_ranked_.frontiers.size(),
-                next_frontier.center.x, next_frontier.center.y, next_frontier.utility_score);
-    
-    // Create PoseStamped message for the new frontier
-    geometry_msgs::msg::PoseStamped new_frontier_goal;
-    new_frontier_goal.header.stamp = this->now();
-    new_frontier_goal.header.frame_id = "map";
-    new_frontier_goal.pose.position = next_frontier.center;
-    new_frontier_goal.pose.orientation.w = 1.0;
-    
-    ProcessFrontierGoal(new_frontier_goal);
-
-    return true;
-}
-
-
 
 // ============================================================================
 // Core PX4 Communication and Control Implementation
@@ -667,9 +497,9 @@ void PX4Controller::TeleopCommandCallback(const flyscan_interfaces::msg::TeleopC
         }
 
         // Transform body frame to world frame using current yaw
-        float world_x, world_y;
-        this->TransformBodyToWorld(body_x, body_y, current_yaw_rad, world_x, world_y);
-        
+        float world_x = body_x * std::cos(current_yaw_rad) - body_y * std::sin(current_yaw_rad);
+        float world_y = body_x * std::sin(current_yaw_rad) + body_y * std::cos(current_yaw_rad);
+
         // Apply the transformed movement to world frame coordinates
         current_position_setpoint_.north_m += world_x;
         current_position_setpoint_.east_m += world_y;
@@ -803,17 +633,6 @@ void PX4Controller::SendArmDisarmCommand(bool arm_vehicle) {
     RCLCPP_INFO(this->get_logger(), "Sent %s command to vehicle", arm_vehicle ? "ARM" : "DISARM");
 }
 
-void PX4Controller::TransformBodyToWorld(float body_x, float body_y, float current_yaw_rad, float& world_x, float& world_y) {
-    float cos_yaw = std::cos(current_yaw_rad);
-    float sin_yaw = std::sin(current_yaw_rad);
-    
-    world_x = body_x * cos_yaw - body_y * sin_yaw;
-    world_y = body_x * sin_yaw + body_y * cos_yaw;
-    // auto rotated = std::polar(1.0f, current_yaw_rad) * std::complex<float>(body_x, body_y);
-    // world_x = rotated.real();
-    // world_y = rotated.imag();
-}
-
 std::string PX4Controller::GetTopicPrefix() const {
     return (drone_id_ == 0) ? "" : "/px4_" + std::to_string(drone_id_);
 }
@@ -825,412 +644,6 @@ std::string PX4Controller::GetControllerTopicName(const std::string& topic_suffi
 std::string PX4Controller::GetCameraTopicName(const std::string& topic_name) const {
     return (drone_id_ == 0) ? topic_name : "/px4_" + std::to_string(drone_id_) + topic_name;
 }
-
-void PX4Controller::CalculateForwardCameraDirection(const geometry_msgs::msg::Point& frontier_pos, 
-                                                    geometry_msgs::msg::Point& forward_pos, float& forward_yaw) {
-    // Get current robot position and heading
-    float current_x, current_y, current_z, current_heading;
-    {
-        std::lock_guard<std::mutex> position_lock(position_mutex_);
-        current_x = current_position_.x;
-        current_y = current_position_.y;
-        current_z = current_position_.z;
-        current_heading = current_position_.heading;
-    }
-    
-    // Calculate camera position in world frame
-    double cam_world_x = current_x + camera_offset_x_ * cos(current_heading);
-    double cam_world_y = current_y + camera_offset_x_ * sin(current_heading);
-    double cam_world_z = current_z + camera_offset_z_;
-    
-    // Calculate direction from camera position to frontier
-    double dx = frontier_pos.x - cam_world_x;
-    double dy = frontier_pos.y - cam_world_y;
-    double distance_to_frontier = sqrt(dx*dx + dy*dy);
-    
-    // Calculate yaw to face the frontier from camera perspective
-    forward_yaw = atan2(dy, dx) * 180.0f / M_PI;
-    
-    // Move forward in the camera scanning cone direction
-    // Account for the camera's cone-shaped scan area
-    double forward_distance;
-    if (distance_to_frontier > optimal_camera_distance_) {
-        // Move closer to get within optimal camera range
-        forward_distance = distance_to_frontier - optimal_camera_distance_ * 0.5;
-    } else {
-        // Move a smaller step to stay in camera range
-        forward_distance = std::min(distance_to_frontier * 0.3, 1.0);
-    }
-    
-    if (distance_to_frontier > 0.1) {
-        // Move toward the frontier considering camera offset
-        double unit_dx = dx / distance_to_frontier;
-        double unit_dy = dy / distance_to_frontier;
-        
-        // Calculate forward position accounting for camera scanning geometry
-        forward_pos.x = current_x + unit_dx * forward_distance;
-        forward_pos.y = current_y + unit_dy * forward_distance;
-    } else {
-        // Very close to frontier, move slightly forward in current heading direction
-        forward_pos.x = current_x + cos(current_heading) * 0.5;
-        forward_pos.y = current_y + sin(current_heading) * 0.5;
-    }
-    
-    // Set altitude for forward movement
-    if (current_mode_ == ControlMode::kAutonomous) {
-        forward_pos.z = autonomous_fixed_height_;
-        RCLCPP_DEBUG(this->get_logger(), "Using autonomous fixed height: %.2f", forward_pos.z);
-    } else {
-        // Maintain safe altitude
-        forward_pos.z = (frontier_pos.z != 0.0) ? frontier_pos.z : current_z;
-        if (forward_pos.z > min_flight_altitude_) {
-            forward_pos.z = min_flight_altitude_;
-            RCLCPP_DEBUG(this->get_logger(), "Enforced minimum altitude: %.2f", forward_pos.z);
-        }
-    }
-    
-    RCLCPP_DEBUG(this->get_logger(), 
-                "Camera-aware forward direction: frontier(%.2f,%.2f,%.2f) -> forward(%.2f,%.2f,%.2f), yaw=%.1f°, cam_pos(%.2f,%.2f)",
-                frontier_pos.x, frontier_pos.y, frontier_pos.z,
-                forward_pos.x, forward_pos.y, forward_pos.z, forward_yaw, cam_world_x, cam_world_y);
-}
-
-
-// ============================================================================
-// Unified Navigation System Implementation
-// ============================================================================
-
-bool PX4Controller::IsPathClearPointCloud(const geometry_msgs::msg::Point& start, 
-                                         const geometry_msgs::msg::Point& end) {
-    std::lock_guard<std::mutex> lock(point_cloud_mutex_);
-    
-    if (!current_point_cloud_ || current_point_cloud_->empty()) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, 
-                            "No point cloud available for path checking");
-        return true; // Assume clear if no point cloud
-    }
-    
-    // Calculate path vector
-    double dx = end.x - start.x;
-    double dy = end.y - start.y;
-    double dz = end.z - start.z;
-    double distance = sqrt(dx*dx + dy*dy + dz*dz);
-    
-    if (distance < 0.1) return true; // Very close, assume clear
-    
-    // Sample points along the path with appropriate density for small drone
-    int num_samples = static_cast<int>(distance / 0.25) + 1; // Sample every 25cm for efficiency
-    double step_x = dx / num_samples;
-    double step_y = dy / num_samples;
-    double step_z = dz / num_samples;
-    
-    for (int i = 0; i <= num_samples; ++i) {
-        pcl::PointXYZ query_point;
-        query_point.x = start.x + i * step_x;
-        query_point.y = start.y + i * step_y;
-        query_point.z = start.z + i * step_z;
-        
-        // Check for nearby obstacles using KD-tree with adjusted safety margin
-        std::vector<int> point_indices;
-        std::vector<float> point_distances;
-        
-        // Dynamic safety margin based on drone velocity and context
-        double dynamic_safety_margin = std::max(navigation_safety_margin_, drone_radius_ + 0.2);
-        
-        int num_neighbors = kdtree_->radiusSearch(query_point, dynamic_safety_margin, 
-                                                point_indices, point_distances);
-        
-        if (num_neighbors >= min_obstacle_points_) {  // Require minimum points for obstacle
-            // Check if nearby points represent real obstacles for small drone
-            int valid_obstacle_points = 0;
-            for (int j = 0; j < num_neighbors; ++j) {
-                const pcl::PointXYZ& obstacle_point = current_point_cloud_->points[point_indices[j]];
-                
-                // Filter out ground points and consider altitude-relevant obstacles
-                // In NED frame: higher z values are further down, so obstacles above drone have lower z
-                double altitude_diff = obstacle_point.z - query_point.z;
-                double horizontal_dist = sqrt(point_distances[j]);
-
-                // More lenient altitude tolerance for small drone (±50cm instead of ±30cm)
-                // Only count as obstacle if close enough horizontally and at relevant altitude
-                if (altitude_diff >= -0.5 && altitude_diff <= 0.5 && horizontal_dist <= dynamic_safety_margin) {
-                    valid_obstacle_points++;
-                }
-            }
-            
-            // Only consider as blocked if enough obstacle points found
-            if (valid_obstacle_points >= min_obstacle_points_) {
-                RCLCPP_DEBUG(this->get_logger(), "Obstacle detected: %d valid points within %.2fm dynamic safety margin", 
-                            valid_obstacle_points, dynamic_safety_margin);
-                return false;
-            }
-        }
-    }
-    
-    return true;
-}
-
-geometry_msgs::msg::Point PX4Controller::CalculateNextNavigationStep(const geometry_msgs::msg::Point& current_pos,
-                                                                      const geometry_msgs::msg::Point& target_pos) {
-    // Calculate direction vector to target
-    double dx = target_pos.x - current_pos.x;
-    double dy = target_pos.y - current_pos.y;
-    double dz = target_pos.z - current_pos.z;
-    double distance = sqrt(dx*dx + dy*dy + dz*dz);
-    
-    geometry_msgs::msg::Point next_step;
-    
-    if (distance <= navigation_step_size_) {
-        // Close to target, move directly to it
-        next_step = target_pos;
-    } else {
-        // Calculate unit vector and step forward
-        double unit_dx = dx / distance;
-        double unit_dy = dy / distance;
-        double unit_dz = dz / distance;
-        
-        next_step.x = current_pos.x + unit_dx * navigation_step_size_;
-        next_step.y = current_pos.y + unit_dy * navigation_step_size_;
-        next_step.z = current_pos.z + unit_dz * navigation_step_size_;
-    }
-    
-    // In autonomous mode, use fixed height; otherwise enforce minimum flight altitude
-    if (current_mode_ == ControlMode::kAutonomous) {
-        next_step.z = autonomous_fixed_height_;
-        RCLCPP_DEBUG(this->get_logger(), "Navigation step using autonomous fixed height: %.2f", next_step.z);
-    } else {
-        // Enforce minimum flight altitude (NED frame: negative is up)
-        if (next_step.z > min_flight_altitude_) {
-            next_step.z = min_flight_altitude_;
-            RCLCPP_DEBUG(this->get_logger(), "Navigation step altitude clamped to minimum: %.2f", next_step.z);
-        }
-    }
-    
-    return next_step;
-}
-
-double PX4Controller::ComputeAvoidanceDirection(double obstacle_direction) {
-    // Simple avoidance: turn 90 degrees from obstacle direction
-    double avoidance_direction = obstacle_direction + M_PI/2;
-    
-    // Normalize to [-pi, pi]
-    while (avoidance_direction > M_PI) avoidance_direction -= 2*M_PI;
-    while (avoidance_direction < -M_PI) avoidance_direction += 2*M_PI;
-    
-    return avoidance_direction;
-}
-
-void PX4Controller::PointCloudNavigationTimerCallback() 
-{
-    if (navigation_state_ != NavigationState::kNavigating) {
-        RCLCPP_DEBUG(this->get_logger(), "Point cloud navigation timer callback triggered but not in navigating state");
-        return;
-    }
-    // ========== NAVIGATION EXECUTION ==========
-    RCLCPP_DEBUG(this->get_logger(), "Point cloud navigation timer callback triggered");
-    
-    std::lock_guard<std::mutex> lock(navigation_mutex_);
-    
-    // Get current position
-    geometry_msgs::msg::Point current_pos;
-    {
-        std::lock_guard<std::mutex> pos_lock(position_mutex_);
-        current_pos.x = current_position_.x;
-        current_pos.y = current_position_.y;
-        current_pos.z = current_position_.z;
-    }
-    
-    // Check if target is reached
-    double dx = current_navigation_target_.pose.position.x - current_pos.x;
-    double dy = current_navigation_target_.pose.position.y - current_pos.y;
-    double dz = current_navigation_target_.pose.position.z - current_pos.z;
-    double distance_to_target = sqrt(dx*dx + dy*dy + dz*dz);
-    
-    if (distance_to_target < waypoint_tolerance_) {
-        navigation_state_ = NavigationState::kIdle;
-        RCLCPP_INFO(this->get_logger(), "Point cloud navigation completed - reached target");
-        return;
-    }
-
-    // Calculate next step towards target
-    geometry_msgs::msg::Point next_step = CalculateNextNavigationStep(current_pos, current_navigation_target_.pose.position);
-    
-    // Check for obstacles in the path using point cloud
-    // Calculate desired yaw to face the target direction
-    double desired_yaw_rad = atan2(dy, dx);
-    double desired_yaw_deg = desired_yaw_rad * 180.0 / M_PI;
-    
-    // Get current yaw
-    double current_yaw_deg;
-    {
-        std::lock_guard<std::mutex> pos_lock(position_mutex_);
-        current_yaw_deg = current_position_.heading * 180.0 / M_PI;
-    }
-    
-    // Calculate yaw error (normalize to [-180, 180])
-    double yaw_error = desired_yaw_deg - current_yaw_deg;
-    while (yaw_error > 180.0) yaw_error -= 360.0;
-    while (yaw_error < -180.0) yaw_error += 360.0;
-    
-    // YAW-FIRST NAVIGATION: Rotate first, then move forward when properly oriented
-    if (std::abs(yaw_error) > yaw_tolerance_) {
-        // Need to rotate first - camera must face forward (+X direction)
-        {
-            std::lock_guard<std::mutex> setpoint_lock(position_setpoint_mutex_);
-            // Hold current position while rotating
-            current_position_setpoint_.north_m = current_pos.x;
-            current_position_setpoint_.east_m = current_pos.y;
-            current_position_setpoint_.down_m = current_pos.z;
-            // Set desired yaw
-            current_position_setpoint_.yaw_deg = desired_yaw_deg;
-        }
-        
-        RCLCPP_DEBUG(this->get_logger(), "Rotating to face target: current_yaw=%.1f°, desired_yaw=%.1f°, error=%.1f°", 
-                    current_yaw_deg, desired_yaw_deg, yaw_error);
-    } else if (IsPathClearPointCloud(current_pos, next_step)) {
-        // Path is clear, move to next step
-        {
-            std::lock_guard<std::mutex> setpoint_lock(position_setpoint_mutex_);
-            current_position_setpoint_.north_m = next_step.x;
-            current_position_setpoint_.east_m = next_step.y;
-            
-            // Use fixed height in autonomous mode, otherwise enforce minimum altitude
-            if (current_mode_ == ControlMode::kAutonomous) {
-                current_position_setpoint_.down_m = autonomous_fixed_height_;
-            } else {
-                // Enforce minimum altitude before setting position
-                double safe_altitude = std::min(next_step.z, min_flight_altitude_);
-                current_position_setpoint_.down_m = safe_altitude;
-            }
-
-            // Face movement direction
-            current_position_setpoint_.yaw_deg = desired_yaw_deg;
-
-        }
-        RCLCPP_DEBUG(this->get_logger(), "Moving to next step: (%.2f, %.2f, %.2f), distance to target: %.2f", 
-                    next_step.x, next_step.y, next_step.z, distance_to_target);
-        
-    } else {
-        RCLCPP_INFO(this->get_logger(), "Obstacle detected in path to current frontier, trying next frontier from list");
-        
-        if (current_mode_ == ControlMode::kAutonomous && SelectNextFrontierFromList()) {
-            RCLCPP_INFO(this->get_logger(), "Successfully switched to next frontier from list");
-            return;
-        } else {
-            RCLCPP_WARN(this->get_logger(), "No alternative frontier available or not in autonomous mode, holding position");
-            
-            navigation_attempt_counter_++;
-            if (navigation_attempt_counter_ > max_navigation_attempts_) {
-                RCLCPP_INFO(this->get_logger(), "Max navigation attempts reached, aborting navigation");
-                navigation_state_ = NavigationState::kIdle;
-            }
-        }
-    }
-}
-
-void PX4Controller::ObstacleMapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
-    std::lock_guard<std::mutex> lock(navigation_mutex_);
-    obstacle_map_ = msg;
-    
-    RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                         "Updated obstacle map: %dx%d, resolution: %.3f",
-                         msg->info.width, msg->info.height, msg->info.resolution);
-}
-
-void PX4Controller::PointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-    std::lock_guard<std::mutex> lock(point_cloud_mutex_);
-    
-    // Convert ROS PointCloud2 to PCL PointCloud
-    pcl::PointCloud<pcl::PointXYZ>::Ptr raw_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::fromROSMsg(*msg, *raw_cloud);
-    
-    if (raw_cloud->empty()) {
-        return;
-    }
-    
-    // Transform point cloud from camera frame to drone/world frame
-    pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    TransformPointCloudFromCamera(raw_cloud, transformed_cloud);
-    
-    // Downsample the transformed point cloud for efficiency
-    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
-    voxel_filter.setInputCloud(transformed_cloud);
-    voxel_filter.setLeafSize(point_cloud_downsample_leaf_size_, 
-                             point_cloud_downsample_leaf_size_, 
-                             point_cloud_downsample_leaf_size_);
-    voxel_filter.filter(*filtered_cloud);
-    
-    // Update current point cloud
-    current_point_cloud_ = filtered_cloud;
-    
-    // Update KD-tree for efficient nearest neighbor search
-    if (!current_point_cloud_->empty()) {
-        kdtree_->setInputCloud(current_point_cloud_);
-    }
-    
-    RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                         "Processed point cloud: %zu raw -> %zu transformed -> %zu filtered points", 
-                         raw_cloud->size(), transformed_cloud->size(), filtered_cloud->size());
-}
-
-void PX4Controller::TransformPointCloudFromCamera(const pcl::PointCloud<pcl::PointXYZ>::Ptr& camera_cloud,
-                                                 pcl::PointCloud<pcl::PointXYZ>::Ptr& world_cloud) {
-    // Get current drone position and orientation
-    float drone_x, drone_y, drone_z, drone_heading;
-    {
-        std::lock_guard<std::mutex> position_lock(position_mutex_);
-        drone_x = current_position_.x;
-        drone_y = current_position_.y;
-        drone_z = current_position_.z;
-        drone_heading = current_position_.heading;
-    }
-    
-    world_cloud->clear();
-    world_cloud->reserve(camera_cloud->size());
-    
-    // Transform each point from camera frame to world frame
-    for (const auto& cam_point : camera_cloud->points) {
-        // Skip invalid points
-        if (!std::isfinite(cam_point.x) || !std::isfinite(cam_point.y) || !std::isfinite(cam_point.z)) {
-            continue;
-        }
-        
-        // Camera frame: X=forward, Y=left, Z=up (typical camera convention)
-        // Drone frame: X=north, Y=east, Z=down (NED convention)
-        
-        // Transform from camera frame to drone body frame
-        // Camera pointing forward: cam_x -> drone_x, cam_y -> -drone_y, cam_z -> -drone_z
-        double body_x = cam_point.x;  // Camera forward = drone forward
-        double body_y = -cam_point.y; // Camera left = drone right (flip for NED)
-        double body_z = -cam_point.z; // Camera up = drone down (flip for NED)
-        
-        // Add camera offset to get point relative to drone center
-        body_x += camera_offset_x_;  // Camera offset forward from drone center
-        body_z += camera_offset_z_;  // Camera offset down from drone center
-        
-        // Rotate from drone body frame to world frame using drone heading
-        double cos_heading = std::cos(drone_heading);
-        double sin_heading = std::sin(drone_heading);
-        
-        double world_x = body_x * cos_heading - body_y * sin_heading;
-        double world_y = body_x * sin_heading + body_y * cos_heading;
-        double world_z = body_z;
-        
-        // Translate to world coordinates
-        pcl::PointXYZ world_point;
-        world_point.x = drone_x + world_x;
-        world_point.y = drone_y + world_y;
-        world_point.z = drone_z + world_z;
-        
-        world_cloud->push_back(world_point);
-    }
-    
-    RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 10000,
-                         "Transformed %zu camera points to world frame at drone pos (%.2f,%.2f,%.2f) heading %.2f°",
-                         world_cloud->size(), drone_x, drone_y, drone_z, drone_heading * 180.0 / M_PI);
-}
-
 
 } // namespace drone_controller
 } // namespace flyscan

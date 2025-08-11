@@ -12,7 +12,6 @@ PX4ROSBridge::PX4ROSBridge()
 : Node("px4_ros_bridge")
 {
   using namespace std::placeholders;
-  // Declare and get parameters
   if (!this->has_parameter("use_sim_time")) {
       this->declare_parameter("use_sim_time", false);
   }
@@ -24,7 +23,6 @@ PX4ROSBridge::PX4ROSBridge()
   
   drone_id_ = this->get_parameter("drone_id").as_int();
   
-  // Subscribe to PX4 VehicleOdometry for this drone
   std::string vehicle_odom_topic = (drone_id_ == 0) ? "/fmu/out/vehicle_odometry" : "/px4_" + std::to_string(drone_id_) + "/fmu/out/vehicle_odometry";
   
   vehicle_odom_sub_ = this->create_subscription<px4_msgs::msg::VehicleOdometry>(
@@ -33,12 +31,9 @@ PX4ROSBridge::PX4ROSBridge()
     std::bind(&PX4ROSBridge::vehicleOdomCallback, this, std::placeholders::_1)
   );
   
-  // Create odometry publisher for this drone
   std::string odom_topic = (drone_id_ == 0) ? "/odom" : "/px4_" + std::to_string(drone_id_) + "/odom";
   odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>(odom_topic, 10);
   
-  RCLCPP_INFO(this->get_logger(), "Set up bridge for drone %d: %s -> %s", drone_id_, vehicle_odom_topic.c_str(), odom_topic.c_str());
-
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   RCLCPP_INFO(this->get_logger(), "PX4 ROS Bridge started for drone %d", drone_id_);
@@ -51,7 +46,7 @@ void PX4ROSBridge::vehicleOdomCallback(const px4_msgs::msg::VehicleOdometry::Sha
   odom_msg.header.stamp = this->get_clock()->now();
   odom_msg.header.frame_id = (drone_id_ == 0) ? "odom" : "px4_" + std::to_string(drone_id_) + "_odom";
   odom_msg.child_frame_id = (drone_id_ == 0) ? "base_link" : "px4_" + std::to_string(drone_id_) + "_base_link";
-\
+
   // Position: NED to ENU conversion
   odom_msg.pose.pose.position.x = msg->position[1];
   odom_msg.pose.pose.position.y = msg->position[0];
@@ -71,7 +66,7 @@ void PX4ROSBridge::vehicleOdomCallback(const px4_msgs::msg::VehicleOdometry::Sha
   q.x() = msg->q[1]; 
   q.y() = msg->q[2];
   q.z() = msg->q[3];
-  auto rotated_q = NED_TO_ENU_Q * q * FRD_TO_FLU_Q;
+  auto rotated_q = NED_ENU_Q * q * FRD_FLU_Q;
 
   odom_msg.pose.pose.orientation.w = rotated_q.w();
   odom_msg.pose.pose.orientation.x = rotated_q.x();

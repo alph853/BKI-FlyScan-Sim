@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 
 #include <px4_msgs/msg/vehicle_command.hpp>
@@ -33,9 +34,14 @@
 #include <flyscan_interfaces/srv/navigate_to_pose.hpp>
 #include <flyscan_interfaces/msg/teleop_command.hpp>
 #include <flyscan_interfaces/msg/frontier_array.hpp>
+#include <flyscan_interfaces/msg/vehicle_state.hpp>
+#include <flyscan_interfaces/msg/controller_event.hpp>
+#include <flyscan_interfaces/action/follow_path.hpp>
+#include <flyscan_interfaces/action/navigate_to_pose3_d.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+#include <nav_msgs/msg/path.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -170,17 +176,56 @@ private:
     void TeleopCommandCallback(const flyscan_interfaces::msg::TeleopCommand::SharedPtr msg);
 
     /**
-     * @brief Callback for ranked frontiers list
-     * @param msg FrontierArray message with ranked frontiers
+     * @brief Callback for trajectory from navigator
+     * @param msg Path message from navigator
      */
-    void FrontiersRankedCallback(const flyscan_interfaces::msg::FrontierArray::SharedPtr msg);
+    void TrajectoryCallback(const nav_msgs::msg::Path::SharedPtr msg);
+    
+    // ============================================================================
+    // Action Server Methods
+    // ============================================================================
+    
+    using FollowPath = flyscan_interfaces::action::FollowPath;
+    using NavigateToPose3D = flyscan_interfaces::action::NavigateToPose3D;
+    using GoalHandleFollowPath = rclcpp_action::ServerGoalHandle<FollowPath>;
+    using GoalHandleNavigateToPose3D = rclcpp_action::ServerGoalHandle<NavigateToPose3D>;
+    
+    rclcpp_action::GoalResponse handle_follow_path_goal(
+        const rclcpp_action::GoalUUID& uuid,
+        std::shared_ptr<const FollowPath::Goal> goal);
+    
+    rclcpp_action::CancelResponse handle_follow_path_cancel(
+        const std::shared_ptr<GoalHandleFollowPath> goal_handle);
+    
+    void handle_follow_path_accepted(
+        const std::shared_ptr<GoalHandleFollowPath> goal_handle);
+
+    rclcpp_action::GoalResponse handle_navigate_to_pose_goal(
+        const rclcpp_action::GoalUUID& uuid,
+        std::shared_ptr<const NavigateToPose3D::Goal> goal);
+    
+    rclcpp_action::CancelResponse handle_navigate_to_pose_cancel(
+        const std::shared_ptr<GoalHandleNavigateToPose3D> goal_handle);
+    
+    void handle_navigate_to_pose_accepted(
+        const std::shared_ptr<GoalHandleNavigateToPose3D> goal_handle);
+
+    void execute_follow_path(const std::shared_ptr<GoalHandleFollowPath> goal_handle);
+    void execute_navigate_to_pose(const std::shared_ptr<GoalHandleNavigateToPose3D> goal_handle);
     
     /**
-     * @brief Process frontier goal in autonomous mode
-     * @param frontier_goal The frontier goal to process
+     * @brief Publish current vehicle state
      */
-    void ProcessFrontierGoal(const geometry_msgs::msg::PoseStamped& frontier_goal);
+    void PublishVehicleState();
     
+    /**
+     * @brief Publish controller event
+     * @param event_type Type of event
+     * @param description Event description
+     * @param priority Priority level
+     */
+    void PublishControllerEvent(uint8_t event_type, const std::string& description, 
+                               uint8_t priority = flyscan_interfaces::msg::ControllerEvent::PRIORITY_MEDIUM);
 
     /**
      * @brief Timer callback for continuous setpoint publishing
@@ -211,31 +256,15 @@ private:
      */
     void SendArmDisarmCommand(bool arm_vehicle);
 
-    /**
-     * @brief Transform body frame movement to world frame using current yaw
-     * @param body_x Body frame X movement (forward/backward)
-     * @param body_y Body frame Y movement (left/right)
-     * @param current_yaw_rad Current yaw angle in radians
-     * @param world_x Output world frame X movement (north/south)
-     * @param world_y Output world frame Y movement (east/west)
-     */
-    void TransformBodyToWorld(float body_x, float body_y, float current_yaw_rad, float& world_x, float& world_y);
+    // ============================================================================
+    // Mode Management Methods
+    // ============================================================================
 
     /**
      * @brief Transform frontier position considering camera field of view
      * @param frontier_pos Frontier position from exploration
      * @param optimal_pos Output optimal drone position for camera coverage
      * @param optimal_yaw Output optimal yaw angle to face frontier
-     */
-    void CalculateForwardCameraDirection(const geometry_msgs::msg::Point& frontier_pos,
-                                        geometry_msgs::msg::Point& forward_pos, float& forward_yaw);
-                                        
-    void TransformPointCloudFromCamera(const pcl::PointCloud<pcl::PointXYZ>::Ptr& camera_cloud,
-                                      pcl::PointCloud<pcl::PointXYZ>::Ptr& world_cloud);
-
-    /**
-     * @brief Get topic prefix for multi-drone support
-     * @return Empty string for drone 1, "/px4_{drone_id}" for others
      */
     std::string GetTopicPrefix() const;
 
@@ -253,62 +282,7 @@ private:
      */
     std::string GetCameraTopicName(const std::string& topic_name) const;
 
-    // ============================================================================
-    // Safe Navigation Methods
-    // ============================================================================
-    
     /**
-     * @brief Check if path to target is obstacle-free using point cloud
-     * @param start Start position
-     * @param end Target position
-     * @return True if path is clear
-     */
-    bool IsPathClearPointCloud(const geometry_msgs::msg::Point& start, 
-                              const geometry_msgs::msg::Point& end);
-    
-    /**
-     * @brief Calculate next navigation step towards target
-     * @param current_pos Current position
-     * @param target_pos Target position
-     * @return Next step position
-     */
-    geometry_msgs::msg::Point CalculateNextNavigationStep(const geometry_msgs::msg::Point& current_pos,
-                                                         const geometry_msgs::msg::Point& target_pos);
-    
-    /**
-     * @brief Pick next frontier from ranked list when current path is blocked
-     * @return True if a new frontier was selected, false if no alternatives available
-     */
-    bool SelectNextFrontierFromList();
-    
-    /**
-     * @brief Execute obstacle avoidance maneuver
-     * @param obstacle_direction Direction of detected obstacle (radians)
-     * @return New safe direction to navigate
-     */
-    double ComputeAvoidanceDirection(double obstacle_direction);
-    
-    /**
-     * @brief Timer callback for point cloud-based navigation execution
-     */
-    void PointCloudNavigationTimerCallback();
-    
-        
-    /**
-     * @brief Callback for obstacle/map data
-     */
-    void ObstacleMapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
-    
-    /**
-     * @brief Callback for point cloud obstacle data
-     */
-    void PointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
-    
-    // ============================================================================
-    // Mode Management Methods
-    // ============================================================================
-    
-         /**
       * @brief Service callback for mode switching
       * @param request Mode switch request
       * @param response Mode switch response
@@ -355,45 +329,40 @@ private:
     rclcpp::Publisher<px4_msgs::msg::OffboardControlMode>::SharedPtr offboard_control_mode_publisher_;
     rclcpp::Publisher<px4_msgs::msg::TrajectorySetpoint>::SharedPtr trajectory_setpoint_publisher_;
     rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr vehicle_command_publisher_;
+    rclcpp::Publisher<flyscan_interfaces::msg::VehicleState>::SharedPtr vehicle_state_publisher_;
+    rclcpp::Publisher<flyscan_interfaces::msg::ControllerEvent>::SharedPtr controller_events_publisher_;
 
     rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr vehicle_local_position_sub_;
     rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr vehicle_status_sub_;
     rclcpp::Subscription<px4_msgs::msg::VehicleLandDetected>::SharedPtr vehicle_land_detected_sub_;
     rclcpp::Subscription<flyscan_interfaces::msg::TeleopCommand>::SharedPtr teleop_command_sub_;
-    rclcpp::Subscription<flyscan_interfaces::msg::FrontierArray>::SharedPtr frontiers_ranked_sub_;
-    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr obstacle_map_sub_;
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr trajectory_sub_;
 
     rclcpp::Service<flyscan_interfaces::srv::SetControlMode>::SharedPtr set_control_mode_service_;
     
+    rclcpp_action::Server<FollowPath>::SharedPtr follow_path_server_;
+    rclcpp_action::Server<NavigateToPose3D>::SharedPtr navigate_to_pose_server_;
+    
     rclcpp::TimerBase::SharedPtr setpoint_timer_;
-    rclcpp::TimerBase::SharedPtr safe_navigation_timer_;
 
     // Timer-based wait state checking
-    rclcpp::TimerBase::SharedPtr arm_check_timer_;
-    rclcpp::TimerBase::SharedPtr inair_check_timer_;
-    rclcpp::TimerBase::SharedPtr offboard_check_timer_;
     
     // ============================================================================
     // State Management
     // ============================================================================
-    
+
     /// Exit flag for main loops
     std::atomic<bool> should_exit_{false};
     std::atomic<bool> armed_{false};
     std::atomic<bool> in_air_{false};
     std::atomic<ControlMode> current_mode_{ControlMode::kManual};
     
+    // Current trajectory tracking
+    nav_msgs::msg::Path current_trajectory_;
+    std::mutex trajectory_mutex_;
     
     // Safe navigation state
     std::atomic<NavigationState> navigation_state_{NavigationState::kIdle};
-    geometry_msgs::msg::PoseStamped current_navigation_target_;
-    std::vector<geometry_msgs::msg::Point> current_waypoints_;
-    size_t current_waypoint_index_{0};
-    nav_msgs::msg::OccupancyGrid::SharedPtr obstacle_map_;
-    double navigation_max_velocity_{1.0};
-    double navigation_safety_margin_{1.5};
-    int navigation_attempt_counter_{0};
     std::mutex navigation_mutex_;
     
     // Point cloud navigation state
@@ -407,13 +376,8 @@ private:
     
     Position current_position_setpoint_;
     flyscan_interfaces::msg::TeleopCommand current_teleop_command_;
-    geometry_msgs::msg::PoseStamped current_exploration_goal_;
-    flyscan_interfaces::msg::FrontierArray current_frontiers_ranked_;
-    size_t current_frontier_index_{0};  // Index of currently targeted frontier
     std::mutex position_setpoint_mutex_;
     std::mutex teleop_command_mutex_;
-    std::mutex exploration_goal_mutex_;
-    std::mutex frontiers_mutex_;
     
     px4_msgs::msg::VehicleLocalPosition current_position_;
     px4_msgs::msg::VehicleStatus current_status_;

@@ -1,0 +1,24 @@
+# Goal
+# Optional ROI for frontier computation
+bool use_roi
+geometry_msgs/PoseStamped roi_center
+float32 roi_radius
+# Compute budget in milliseconds
+uint32 max_compute_time_ms
+# Ranking policy
+string ranking_policy
+
+---
+
+# Result
+flyscan_interfaces/FrontierArray frontiers
+uint32 duration_ms
+uint32 pruned_count
+bool success
+string message
+
+---
+
+# Feedback
+uint32 progress_percent
+uint32 frontier_count

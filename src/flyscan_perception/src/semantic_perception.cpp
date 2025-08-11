@@ -160,24 +160,20 @@ flyscan::common::OperationStatus SemanticPerception::HandleCleanup()
 {
     RCLCPP_INFO(this->get_logger(), "Cleaning up Semantic Perception...");
 
-    // Reset all components
     video_subscription_.reset();
     depth_subscription_.reset();
     camera_info_subscription_.reset();
     detection_publisher_.reset();
     qr_position_publisher_.reset();
     
-    // Clear TF2 components
     tf_listener_.reset();
     tf_buffer_.reset();
 
-    // Clear YOLO model
     ort_session_.reset();
     ort_env_.reset();
     session_options_.reset();
     yolo_initialized_ = false;
     
-    // Clear QR records
     {
         std::lock_guard<std::mutex> lock(qr_records_mutex_);
         processed_qr_codes_.clear();
@@ -301,10 +297,8 @@ void SemanticPerception::PublishDetections(const std::vector<Detection>& detecti
 bool SemanticPerception::InitializeYoloModel(const std::string& model_path)
 {
     try {
-        // Initialize ONNX Runtime environment
         ort_env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "YOLOv8");
         
-        // Create session options for better performance
         session_options_ = std::make_unique<Ort::SessionOptions>();
         session_options_->SetIntraOpNumThreads(std::thread::hardware_concurrency());
         session_options_->SetInterOpNumThreads(1);
@@ -371,15 +365,12 @@ std::vector<Detection> SemanticPerception::RunYoloInference(const cv::Mat& frame
     }
     
     try {
-        // Preprocess the frame
         cv::Mat preprocessed = PreprocessFrame(frame);
         
-        // Create input tensor
         std::vector<int64_t> input_shape = {1, 3, 640, 640};
         size_t input_tensor_size = 1 * 3 * 640 * 640;
         std::vector<float> input_tensor_values(input_tensor_size);
         
-        // Fill input tensor (HWC to CHW format)
         for (int c = 0; c < 3; ++c) {
             for (int h = 0; h < 640; ++h) {
                 for (int w = 0; w < 640; ++w) {
@@ -389,21 +380,17 @@ std::vector<Detection> SemanticPerception::RunYoloInference(const cv::Mat& frame
             }
         }
         
-        // Create input tensor
         Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
             memory_info, input_tensor_values.data(), input_tensor_size,
             input_shape.data(), input_shape.size());
         
-        // Run inference
         std::vector<Ort::Value> output_tensors = ort_session_->Run(
             Ort::RunOptions{nullptr}, input_names_.data(), &input_tensor, 1,
             output_names_.data(), output_names_.size());
         
-        // Post-process outputs
         detections = PostprocessOutputs(output_tensors, frame.cols, frame.rows);
         
-        // Process QR/Barcode decoding for detected objects
         ProcessQrDecoding(frame, detections);
         
     } catch (const std::exception& e) {
@@ -417,10 +404,8 @@ cv::Mat SemanticPerception::PreprocessFrame(const cv::Mat& frame)
 {
     cv::Mat resized, normalized;
     
-    // Resize to model input size
     cv::resize(frame, resized, cv::Size(640, 640));
 
-    // Convert to float and normalize to [0, 1]
     resized.convertTo(normalized, CV_32F, 1.0 / 255.0);
     
     return normalized;
@@ -435,11 +420,9 @@ std::vector<Detection> SemanticPerception::PostprocessOutputs(const std::vector<
         return detections;
     }
     
-    // Get output tensor data
     const float* output_data = outputs[0].GetTensorData<float>();
     auto output_shape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
     
-    // YOLOv8 output format: [batch, 84, 8400] where 84 = 4 (bbox) + 80 (classes)
     int num_detections = output_shape[2];  // 8400
     int num_classes = output_shape[1] - 4; // classes (total - 4 bbox coords)
     
@@ -447,15 +430,12 @@ std::vector<Detection> SemanticPerception::PostprocessOutputs(const std::vector<
     std::vector<float> confidences;
     std::vector<int> class_ids;
     
-    // Parse detections - YOLOv8 has transposed output format
     for (int i = 0; i < num_detections; ++i) {
-        // Extract box coordinates (center_x, center_y, width, height)
         float cx = output_data[i];                           // First row
         float cy = output_data[num_detections + i];          // Second row  
         float w = output_data[2 * num_detections + i];       // Third row
         float h = output_data[3 * num_detections + i];       // Fourth row
         
-        // Find the class with highest confidence
         float max_confidence = 0.0f;
         int best_class_id = -1;
         
@@ -467,9 +447,7 @@ std::vector<Detection> SemanticPerception::PostprocessOutputs(const std::vector<
             }
         }
         
-        // Filter by confidence threshold
         if (max_confidence >= confidence_threshold_) {
-            // Convert to corner coordinates and scale to original image size
             float x1 = (cx - w / 2) * img_width / 640;
             float y1 = (cy - h / 2) * img_height / 640;
             float x2 = (cx + w / 2) * img_width / 640;
@@ -482,11 +460,9 @@ std::vector<Detection> SemanticPerception::PostprocessOutputs(const std::vector<
         }
     }
     
-    // Apply Non-Maximum Suppression
     std::vector<int> indices;
     cv::dnn::NMSBoxes(boxes, confidences, confidence_threshold_, nms_threshold_, indices);
     
-    // Create final detections
     for (int idx : indices) {
         Detection det;
         det.bbox = boxes[idx];
@@ -764,7 +740,6 @@ void flyscan::perception::SemanticPerception::SendQrHttpRequest(const std::strin
     
     curl = curl_easy_init();
     if (curl) {
-        // Create JSON payload
         nlohmann::json payload;
         payload["productCode"] = qr_data;
         payload["droneId"] = "DRONE-05";
@@ -777,7 +752,6 @@ void flyscan::perception::SemanticPerception::SendQrHttpRequest(const std::strin
         struct curl_slist* headers = nullptr;
         headers = curl_slist_append(headers, "Content-Type: application/json");
         
-        // Configure curl
         curl_easy_setopt(curl, CURLOPT_URL, "https://bki-web-api.onrender.com/api/drone-scan");
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_string.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -785,7 +759,6 @@ void flyscan::perception::SemanticPerception::SendQrHttpRequest(const std::strin
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
         
-        // Perform the request
         res = curl_easy_perform(curl);
         
         if (res != CURLE_OK) {
@@ -808,7 +781,6 @@ bool flyscan::perception::SemanticPerception::IsNewQrCode(const std::string& qr_
     std::lock_guard<std::mutex> lock(qr_records_mutex_);
     
     for (const auto& record : processed_qr_codes_) {
-        // If same QR data, check position similarity
         if (record.data == qr_data) {
             double distance = std::sqrt(
                 std::pow(record.position.x - position.x, 2) +
@@ -823,7 +795,7 @@ bool flyscan::perception::SemanticPerception::IsNewQrCode(const std::string& qr_
         }
     }
     
-    return true;  // This is a new QR code
+    return true;
 }
 
 std::string SemanticPerception::GetCameraTopicName(const std::string& topic_name) const {
